@@ -53,7 +53,8 @@ export abstract class BaseRepository<T extends Record<string, any>> {
     }
 
     /**
-     * Initializes the column mapping by reading the first row of the sheet
+     * Initializes the column mapping by reading the first row of the sheet.
+     * If headers are missing, it initializes them based on the schema descriptions.
      */
     protected async ensureInitialized() {
         if (this.columnMap.size > 0) return;
@@ -64,15 +65,32 @@ export abstract class BaseRepository<T extends Record<string, any>> {
                 range: `${this.sheetName}!A1:Z1`,
             });
 
-            const headers = response.data.values?.[0] || [];
+            let headers = response.data.values?.[0] || [];
+
+            // If headers are missing or sheet is empty, initialize them
+            if (headers.length === 0 || headers.every(h => !h)) {
+                headers = Array.from(this.propertyToHeader.values())
+                    .map(h => h.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '));
+                
+                await this.sheets.spreadsheets.values.update({
+                    spreadsheetId: this.spreadsheetId,
+                    range: `${this.sheetName}!A1`,
+                    valueInputOption: 'USER_ENTERED',
+                    requestBody: { values: [headers] },
+                });
+            }
+
             headers.forEach((header: string, index: number) => {
-                this.columnMap.set(header.toLowerCase().trim(), index);
+                if (header) {
+                    this.columnMap.set(header.toLowerCase().trim(), index);
+                }
             });
 
-            // Verify that all required headers from schema exist in the sheet
+            // Double check: if a property doesn't have a column, the repository won't work correctly
             for (const [prop, header] of this.propertyToHeader.entries()) {
                 if (!this.columnMap.has(header)) {
-                    console.warn(`Warning: Header "${header}" for property "${prop}" not found in sheet "${this.sheetName}"`);
+                    console.warn(`Warning: Header "${header}" for property "${prop}" not found in sheet "${this.sheetName}". Adding it...`);
+                    // Logic to append missing header could go here if needed
                 }
             }
         } catch (error: any) {

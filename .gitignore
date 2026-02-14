@@ -87,8 +87,9 @@ dist/
 src/**/*.js
 src/**/*.js.map
 src/**/*.d.ts
+!src/types/*.d.ts
 src/**/*.d.ts.map
-
+prisma/migrations/
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js

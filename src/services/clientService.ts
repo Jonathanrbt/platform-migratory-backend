@@ -42,7 +42,7 @@ export class ClientService {
 
         try {
             // 2. Create Drive structure
-            await this.driveService.createClientFolderStructure(id);
+            await this.driveService.createClientFolderStructure(id, newClient.firstName, newClient.lastName);
         } catch (error) {
             // "Manual Rollback": If drive fails, we flag the client
             console.error(`Failed to create Drive structure for client ${id}:`, error);

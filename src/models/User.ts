@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const userSchema = z.object({
     id: z.string().optional().describe('ID'),
     email: z.string().email('Invalid email format').describe('Email'),
+    password: z.string().min(6, 'Password must be at least 6 characters').optional().describe('Password'),
     passwordHash: z.string().optional().describe('PasswordHash'),
     role: z.enum(['Cliente', 'Abogado']).default('Cliente').describe('Role'),
     firstName: z.string().min(2).describe('First Name'),

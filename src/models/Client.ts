@@ -13,6 +13,10 @@ export const clientSchema = z.object({
     direccion: z.string().min(10, 'La dirección debe ser completa (mínimo 10 caracteres)').describe('Direccion'),
     status: z.enum(['Registro incompleto', 'En revisión por abogado', 'Pendiente', 'En proceso', 'Aprobado', 'Rechazado', 'Archivado', 'Error en Sistema']).optional().default('Registro incompleto').describe('Status'),
     registrationDate: z.string().optional().describe('Registration Date'),
+    lastValidationStatus: z.string().optional().describe('Ultimo Estado Validacion'),
+    pendingNotesCount: z.number().optional().describe('Notas Pendientes'),
+    validations: z.string().optional().describe('Historial Validaciones'),
+    notes: z.string().optional().describe('Historial Notas'),
 });
 
 export type Client = z.infer<typeof clientSchema>;
@@ -30,5 +34,9 @@ export const CLIENT_SHEET_HEADERS = [
     'Phone',
     'Direccion',
     'Status',
-    'Registration Date'
+    'Registration Date',
+    'Ultimo Estado Validacion',
+    'Notas Pendientes',
+    'Historial Validaciones',
+    'Historial Notas'
 ];

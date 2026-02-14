@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
-import { UserSheetsService } from './googleSheets/UserSheetsService';
+import { UserService } from './UserService';
 import { User } from '../models/User';
 import { AppError } from '../utils/AppError';
 
@@ -10,35 +10,38 @@ const JWT_EXPIRES_IN = '24h';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
-const userSheetsService = new UserSheetsService();
+const userService = new UserService();
 
 export class AuthService {
-    async register(userData: Omit<User, 'id' | 'registrationDate'>): Promise<{ user: User; token: string }> {
-        const existingUser = await userSheetsService.getUserByEmail(userData.email);
+    async register(userData: any): Promise<{ user: User; token: string }> {
+        const existingUser = await userService.getUserByEmail(userData.email);
         if (existingUser) {
             throw new AppError('Email already in use', 400);
         }
 
-        const passwordHash = userData.passwordHash 
-            ? await bcrypt.hash(userData.passwordHash, 12) 
+        const passwordHash = userData.password 
+            ? await bcrypt.hash(userData.password, 12) 
             : undefined;
 
+        // Clean up userData to match the User model before creating
+        const { password, ...userBaseData } = userData;
+
         const newUser: User = {
-            ...userData,
+            ...userBaseData,
             passwordHash,
-            id: (userData as any).id || require('uuid').v4(),
+            id: userBaseData.id || require('uuid').v4(),
             registrationDate: new Date().toISOString()
         };
 
-        await userSheetsService.create(newUser);
+        const createdUser = await userService.create(newUser);
         
-        const token = this.generateToken(newUser);
+        const token = this.generateToken(createdUser);
 
-        return { user: newUser, token };
+        return { user: createdUser, token };
     }
 
     async login(email: string, passwordHash: string): Promise<{ user: User; token: string }> {
-        const user = await userSheetsService.getUserByEmail(email);
+        const user = await userService.getUserByEmail(email);
         
         if (!user || !user.passwordHash || !(await bcrypt.compare(passwordHash, user.passwordHash))) {
             throw new AppError('Incorrect email or password', 401);
@@ -60,7 +63,7 @@ export class AuthService {
                 throw new AppError('Invalid Google token', 400);
             }
 
-            let user = await userSheetsService.getUserByEmail(payload.email);
+            let user = await userService.getUserByEmail(payload.email);
 
             if (!user) {
                 // Auto-register Google users
@@ -71,8 +74,7 @@ export class AuthService {
                     role: 'Cliente',
                     googleId: payload.sub,
                 };
-                await userSheetsService.create(newUser);
-                user = await userSheetsService.getUserByEmail(payload.email);
+                user = await userService.create(newUser);
             }
 
             if (!user) throw new AppError('Error with Google login', 500);

@@ -120,15 +120,19 @@ export class DriveService {
         }
     }
 
-    async createClientFolderStructure(clientId: string): Promise<void> {
+    async createClientFolderStructure(clientId: string, firstName: string, lastName: string): Promise<void> {
         const rootId = process.env.GOOGLE_DRIVE_CLIENTS_ROOT_ID;
         if (!rootId) {
             console.warn('GOOGLE_DRIVE_CLIENTS_ROOT_ID not configured. Skipping Drive folder creation.');
             return;
         }
 
+        // Create a friendly name: Juan_Perez_f312c569
+        const shortId = clientId.split('-')[0];
+        const folderName = `${firstName}_${lastName}_${shortId}`.replace(/\s+/g, '_');
+
         // 1. Create client main folder
-        const clientFolderId = await this.createFolder(clientId, rootId);
+        const clientFolderId = await this.createFolder(folderName, rootId);
 
         // 2. Create subfolders for document types (based on Master Doc)
         const docTypes = ['Pasaporte', 'Antecedentes Penales', 'Certificado Empadronamiento', 'Pruebas Permanencia'];
