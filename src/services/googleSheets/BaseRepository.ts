@@ -45,7 +45,15 @@ export abstract class BaseRepository<T extends Record<string, any>> {
     private initializePropertyMap() {
         const shape = this.schema.shape;
         for (const key in shape) {
-            const description = shape[key]._def.description;
+            let current = shape[key];
+            let description = current.description;
+            
+            // Traverse down through optional, nullable, default, etc. if description is missing
+            while (!description && current._def.innerType) {
+                current = current._def.innerType;
+                description = current.description;
+            }
+
             if (description) {
                 this.propertyToHeader.set(key, description.toLowerCase().trim());
             }
@@ -62,7 +70,7 @@ export abstract class BaseRepository<T extends Record<string, any>> {
         try {
             const response = await this.sheets.spreadsheets.values.get({
                 spreadsheetId: this.spreadsheetId,
-                range: `${this.sheetName}!A1:Z1`,
+                range: `${this.sheetName}!A1:AZ1`,
             });
 
             let headers = response.data.values?.[0] || [];
@@ -115,7 +123,44 @@ export abstract class BaseRepository<T extends Record<string, any>> {
         for (const [prop, header] of this.propertyToHeader.entries()) {
             const colIndex = this.columnMap.get(header);
             if (colIndex !== undefined && row[colIndex] !== undefined) {
-                entity[prop] = row[colIndex];
+                let value = row[colIndex];
+                
+                // Determine if the field is a number or boolean by checking its Zod type
+                const fieldSchema = this.schema.shape[prop];
+                let isNumber = prop === 'pendingNotesCount' || prop === 'confidence'; // Manual override for these
+                let isBoolean = false;
+                let current = fieldSchema;
+                
+                while (!isNumber && current) {
+                    const typeName = current._def?.typeName;
+                    const className = current.constructor.name;
+                    
+                    if (typeName === 'ZodNumber' || className === 'ZodNumber') {
+                        isNumber = true;
+                        break;
+                    }
+
+                    if (current._def?.innerType) {
+                        current = current._def.innerType;
+                    } else if (current._def?.schema) {
+                        current = current._def.schema;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (isNumber) {
+                    if (value === '' || value === undefined || value === null) {
+                        value = 0; // Default to 0 for missing numeric values
+                    } else {
+                        const parsed = Number(value);
+                        if (!isNaN(parsed)) {
+                            value = parsed;
+                        }
+                    }
+                }
+
+                entity[prop] = value;
             }
         }
         return this.schema.parse(entity) as T;
@@ -139,7 +184,7 @@ export abstract class BaseRepository<T extends Record<string, any>> {
 
     async findAll(): Promise<T[]> {
         await this.ensureInitialized();
-        const rows = await this.getValues('A2:Z');
+        const rows = await this.getValues('A2:AZ');
         return rows.map(row => {
             try {
                 return this.mapRowToEntity(row);
@@ -159,7 +204,7 @@ export abstract class BaseRepository<T extends Record<string, any>> {
             throw new AppError(`Primary key column "${headerName}" not found`, 500);
         }
 
-        const rows = await this.getValues('A2:Z');
+        const rows = await this.getValues('A2:AZ');
         const row = rows.find(r => r[colIndex] === id);
         
         return row ? this.mapRowToEntity(row) : null;
@@ -188,7 +233,7 @@ export abstract class BaseRepository<T extends Record<string, any>> {
         const headerName = this.propertyToHeader.get(this.pkField as string);
         const colIndex = this.columnMap.get(headerName || '');
         
-        const rows = await this.getValues('A:Z');
+        const rows = await this.getValues('A:AZ');
         const rowIndex = rows.findIndex(r => r[colIndex!] === id);
 
         if (rowIndex === -1) {
@@ -204,7 +249,7 @@ export abstract class BaseRepository<T extends Record<string, any>> {
         try {
             await this.sheets.spreadsheets.values.update({
                 spreadsheetId: this.spreadsheetId,
-                range: `${this.sheetName}!A${rowIndex + 1}:Z${rowIndex + 1}`,
+                range: `${this.sheetName}!A${rowIndex + 1}:AZ${rowIndex + 1}`,
                 valueInputOption: 'USER_ENTERED',
                 requestBody: { values: [updatedRow] },
             });
