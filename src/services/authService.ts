@@ -14,39 +14,55 @@ const userService = new UserService();
 
 export class AuthService {
     async register(userData: any): Promise<{ user: User; token: string }> {
-        const existingUser = await userService.getUserByEmail(userData.email);
+        const { email, password, firstName, lastName, role, ...otherData } = userData;
+        
+        console.log(`[AuthService] Intentando registrar usuario: ${email}`);
+        console.log(`[AuthService] Password recibida: ${password ? 'SI (largo: ' + password.length + ')' : 'NO'}`);
+        
+        const existingUser = await userService.getUserByEmail(email);
         if (existingUser) {
+            console.warn(`[AuthService] Registro fallido: El email ${email} ya está en uso.`);
             throw new AppError('Email already in use', 400);
         }
 
-        const passwordHash = userData.password 
-            ? await bcrypt.hash(userData.password, 12) 
-            : undefined;
-
-        // Clean up userData to match the User model before creating
-        const { password, ...userBaseData } = userData;
+        let passwordHash: string | undefined;
+        if (password) {
+            passwordHash = await bcrypt.hash(password, 12);
+            console.log(`[AuthService] Hash generado exitosamente`);
+        } else {
+            console.warn(`[AuthService] No se proporcionó contraseña para el usuario: ${email}`);
+        }
 
         const newUser: User = {
-            ...userBaseData,
+            ...otherData,
+            email,
+            firstName,
+            lastName,
+            role: role || 'Cliente',
             passwordHash,
-            id: userBaseData.id || require('uuid').v4(),
+            id: userData.id || require('uuid').v4(),
             registrationDate: new Date().toISOString()
         };
 
+        console.log(`[AuthService] Guardando usuario con passwordHash: ${newUser.passwordHash ? 'PRESENTE' : 'AUSENTE'}`);
         const createdUser = await userService.create(newUser);
         
+        console.log(`[AuthService] Usuario creado exitosamente con ID: ${createdUser.id}`);
         const token = this.generateToken(createdUser);
 
         return { user: createdUser, token };
     }
 
-    async login(email: string, passwordHash: string): Promise<{ user: User; token: string }> {
+    async login(email: string, password: string): Promise<{ user: User; token: string }> {
+        console.log(`[AuthService] Intento de login para: ${email}`);
         const user = await userService.getUserByEmail(email);
         
-        if (!user || !user.passwordHash || !(await bcrypt.compare(passwordHash, user.passwordHash))) {
+        if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+            console.warn(`[AuthService] Login fallido para: ${email}`);
             throw new AppError('Incorrect email or password', 401);
         }
 
+        console.log(`[AuthService] Login exitoso para: ${email} (Rol: ${user.role})`);
         const token = this.generateToken(user);
         return { user, token };
     }
@@ -73,6 +89,8 @@ export class AuthService {
                     lastName: payload.family_name || 'User',
                     role: 'Cliente',
                     googleId: payload.sub,
+                    id: require('uuid').v4(),
+                    registrationDate: new Date().toISOString()
                 };
                 user = await userService.create(newUser);
             }
