@@ -5,6 +5,7 @@ export class UserService {
     async create(userData: User): Promise<User> {
         const user = await prisma.user.create({
             data: {
+                id: userData.id,
                 email: userData.email,
                 passwordHash: userData.passwordHash,
                 role: userData.role as any,
