@@ -2,6 +2,7 @@ import { VisionService } from './visionService';
 import { ValidationSheetsService } from '../googleSheets/ValidationSheetsService';
 import { Validation } from '../../models/Validation';
 import { AppError } from '../../utils/AppError';
+import prisma from '../../config/prisma';
 
 export class ValidationService {
     private visionService: VisionService;
@@ -18,28 +19,37 @@ export class ValidationService {
     async processDocument(clientId: string, documentId: string, fileBuffer: Buffer): Promise<void> {
         try {
             // 1. Extract text and detect basic metadata
-            const text = await this.visionService.extractText(fileBuffer);
+            const { text, language } = await this.visionService.extractText(fileBuffer);
             if (!text) {
                 await this.recordValidation(clientId, documentId, 'Legibilidad', 'Fail', 0, 'No se pudo extraer texto del documento', 'Re-upload');
                 return;
             }
 
             // 2. Run Individual Validations
-            await this.validateLanguage(clientId, documentId, text);
+            await this.validateLanguage(clientId, documentId, language);
             await this.validateVigencia(clientId, documentId, text);
             await this.validateApostilla(clientId, documentId, text);
             
             // 3. Legibility check based on basic extraction success
             await this.recordValidation(clientId, documentId, 'Legibilidad', 'Pass', 1, 'Texto extraído correctamente', 'None');
 
+            // 4. Update SQL User flag (assuming clientId matches User.id)
+            try {
+                await prisma.user.update({
+                    where: { id: clientId },
+                    data: { documentsUploaded: true }
+                });
+            } catch (err) {
+                console.warn(`Could not update documentsUploaded for user ${clientId}. (User may not exist in SQL if they only exist in Sheets)`);
+            }
+
         } catch (error: any) {
             throw new AppError(`Error processing document validation: ${error.message}`, 500);
         }
     }
 
-    private async validateLanguage(clientId: string, documentId: string, text: string) {
-        const lang = await this.visionService.detectLanguage(text);
-        const isSpanish = lang === 'es';
+    private async validateLanguage(clientId: string, documentId: string, language: string) {
+        const isSpanish = language === 'es';
         
         await this.recordValidation(
             clientId,
@@ -47,7 +57,7 @@ export class ValidationService {
             'Idioma',
             isSpanish ? 'Pass' : 'Fail',
             0.9,
-            isSpanish ? 'Idioma detectado: Español' : `Idioma detectado: ${lang}`,
+            isSpanish ? 'Idioma detectado: Español' : `Idioma detectado: ${language}`,
             isSpanish ? 'None' : 'Manual Review'
         );
     }

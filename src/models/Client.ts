@@ -5,6 +5,8 @@ export const clientSchema = z.object({
     // Paso 1: Datos personales
     firstName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').describe('Nombre'),
     lastName: z.string().min(2, 'Los apellidos deben tener al menos 2 caracteres').describe('Apellidos'),
+    documentType: z.string().optional().transform((val) => val ? val.trim().toUpperCase() : val).describe('Tipo de Documento'),
+    documentNumber: z.string().optional().describe('Numero de Documento'),
     fechaNacimiento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (AAAA-MM-DD)').describe('Fecha Nacimiento'),
     nacionalidad: z.string().min(2, 'Nacionalidad es requerida').describe('Nacionalidad'),
     countryOfBirth: z.string().min(2, 'País de nacimiento es requerido').describe('Pais de Nacimiento'),
@@ -45,6 +47,7 @@ export const clientSchema = z.object({
     pendingNotesCount: z.number().optional().describe('Notas Pendientes'),
     validations: z.string().optional().describe('Historial Validaciones'),
     notes: z.string().optional().describe('Historial Notas'),
+    familyId: z.string().optional().describe('ID Nucleo Familiar'),
 });
 
 export type Client = z.infer<typeof clientSchema>;
@@ -55,6 +58,8 @@ export const CLIENT_SHEET_HEADERS = [
     'ID',
     'Nombre',
     'Apellidos',
+    'Tipo de Documento',
+    'Numero de Documento',
     'Fecha Nacimiento',
     'Nacionalidad',
     'Pais de Nacimiento',
@@ -78,5 +83,6 @@ export const CLIENT_SHEET_HEADERS = [
     'Ultimo Estado Validacion',
     'Notas Pendientes',
     'Historial Validaciones',
-    'Historial Notas'
+    'Historial Notas',
+    'ID Nucleo Familiar'
 ];

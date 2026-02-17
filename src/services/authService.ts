@@ -89,8 +89,10 @@ export class AuthService {
                     lastName: payload.family_name || 'User',
                     role: 'Cliente',
                     googleId: payload.sub,
+                    documentType: undefined,
                     id: require('uuid').v4(),
-                    registrationDate: new Date().toISOString()
+                    registrationDate: new Date().toISOString(),
+                    documentsUploaded: false
                 };
                 user = await userService.create(newUser);
             }
@@ -102,6 +104,10 @@ export class AuthService {
         } catch (error: any) {
             throw new AppError(`Google authentication failed: ${error.message}`, 401);
         }
+    }
+
+    async completeProfile(userId: string, data: { documentType: string; documentNumber: string }): Promise<User> {
+        return await userService.updateDocumentInfo(userId, data.documentType, data.documentNumber);
     }
 
     private generateToken(user: User): string {

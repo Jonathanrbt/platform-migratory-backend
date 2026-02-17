@@ -29,3 +29,19 @@ export const googleLogin = asyncHandler(async (req: Request, res: Response) => {
         data: result
     });
 });
+
+export const completeProfile = asyncHandler(async (req: Request, res: Response) => {
+    const userId = (req as any).user.id;
+    const { documentType, documentNumber } = req.body;
+    
+    if (!documentType || !documentNumber) {
+        throw new Error('Document type and number are required');
+    }
+
+    const updatedUser = await authService.completeProfile(userId, { documentType, documentNumber });
+    
+    res.status(200).json({
+        status: 'success',
+        data: { user: updatedUser }
+    });
+});
