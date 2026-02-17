@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ClientService } from '../services/clientService';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/AppError';
+import prisma from '../config/prisma';
 
 const clientService = new ClientService();
 
@@ -25,7 +26,7 @@ export const getClients = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getProfile = asyncHandler(async (req: Request, res: Response) => {
-    const user = req.user;
+    const user = req.user as any;
 
     if (!user) {
         throw new AppError('Authentication required', 401);
@@ -41,7 +42,7 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 
 export const getClientById = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const user = req.user;
+    const user = req.user as any;
 
     if (!user) {
         throw new AppError('Authentication required', 401);
@@ -61,7 +62,7 @@ export const getClientById = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const createClient = asyncHandler(async (req: Request, res: Response) => {
-    const user = req.user;
+    const user = req.user as any;
 
     if (!user) {
         throw new AppError('Authentication required', 401);
@@ -80,7 +81,19 @@ export const createClient = asyncHandler(async (req: Request, res: Response) => 
         }
     }
 
-    const newClient = await clientService.registerClient(req.body);
+    // Fetch user details including family to get Drive Folder ID
+    const userDetails = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { family: true }
+    });
+
+    const familyDriveFolderId = userDetails?.family?.driveFolderId || undefined;
+    const familyId = userDetails?.familyId || undefined;
+
+    // Add familyId to client data if present, and use user.id as client.id
+    const clientData = { ...req.body, id: user.id, familyId };
+
+    const newClient = await clientService.registerClient(clientData, { familyDriveFolderId });
     
     res.status(201).json({ 
         status: 'success',
@@ -92,7 +105,7 @@ export const createClient = asyncHandler(async (req: Request, res: Response) => 
 export const updateClient = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const updates = req.body;
-    const user = req.user;
+    const user = req.user as any;
 
     if (!user) {
         throw new AppError('Authentication required', 401);

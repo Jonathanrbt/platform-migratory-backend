@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
 import clientRoutes from './routes/clientRoutes';
+import familyRoutes from './routes/familyRoutes';
 import webhookRoutes from './routes/webhookRoutes';
 import { errorMiddleware } from './middleware/errorMiddleware';
 
@@ -15,6 +16,7 @@ app.use(express.json());
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/clients', clientRoutes);
+app.use('/api/v1/family', familyRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 
 app.get('/health', (req, res) => {

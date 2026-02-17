@@ -120,10 +120,10 @@ export class DriveService {
         }
     }
 
-    async createClientFolderStructure(clientId: string, firstName: string, lastName: string): Promise<void> {
-        const rootId = process.env.GOOGLE_DRIVE_CLIENTS_ROOT_ID;
+    async createClientFolderStructure(clientId: string, firstName: string, lastName: string, parentFolderId?: string): Promise<void> {
+        const rootId = parentFolderId || process.env.GOOGLE_DRIVE_CLIENTS_ROOT_ID;
         if (!rootId) {
-            console.warn('GOOGLE_DRIVE_CLIENTS_ROOT_ID not configured. Skipping Drive folder creation.');
+            console.warn('GOOGLE_DRIVE_CLIENTS_ROOT_ID not configured and no parentFolderId provided. Skipping Drive folder creation.');
             return;
         }
 

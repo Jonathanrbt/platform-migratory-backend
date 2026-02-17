@@ -17,7 +17,13 @@ export const errorMiddleware = (
 
   res.status(statusCode).json({
     status: statusCode >= 400 && statusCode < 500 ? 'fail' : 'error',
-    message,
+    error: {
+        code: statusCode,
+        message,
+        path: req.originalUrl,
+        timestamp: new Date().toISOString(),
+        ...(err instanceof AppError && (err as any).details && { details: (err as any).details })
+    },
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };

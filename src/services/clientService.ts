@@ -29,7 +29,7 @@ export class ClientService {
         return await this.clientSheetsService.findByEmail(email);
     }
 
-    async registerClient(clientData: Client) {
+    async registerClient(clientData: Client, options?: { familyDriveFolderId?: string }) {
         const id = clientData.id || uuidv4();
         const registrationDate = clientData.registrationDate || new Date().toISOString();
         let status = clientData.status || 'Registro incompleto';
@@ -82,7 +82,7 @@ export class ClientService {
 
         try {
             // 5. Crear estructura en Drive (Solo si no fue rechazado de entrada por regla legal, opcional)
-            await this.driveService.createClientFolderStructure(id, newClient.firstName, newClient.lastName);
+            await this.driveService.createClientFolderStructure(id, newClient.firstName, newClient.lastName, options?.familyDriveFolderId);
         } catch (error) {
             console.error(`Failed to create Drive structure for client ${id}:`, error);
             await this.clientSheetsService.update(id, { 

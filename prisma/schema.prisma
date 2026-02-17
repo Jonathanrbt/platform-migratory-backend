@@ -16,16 +16,36 @@ enum Role {
 }
 
 model User {
-  id               String   @id @default(uuid())
-  email            String   @unique
-  passwordHash     String?
-  role             Role     @default(Cliente)
-  firstName        String
-  lastName         String
-  googleId         String?
-  registrationDate DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String?
+  role              Role     @default(Cliente)
+  firstName         String
+  lastName          String
+  googleId          String?
+  registrationDate  DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  documentNumber    String?  @unique
+  documentType      String?
+  familyId          String?
+  family            FamilyNucleus? @relation("FamilyMembers", fields: [familyId], references: [id])
+  adminOf           FamilyNucleus? @relation("FamilyAdmin")
+  documentsUploaded Boolean  @default(false)
 
   @@map("users")
+}
+
+model FamilyNucleus {
+  id            String   @id @default(uuid())
+  name          String
+  adminId       String   @unique
+  admin         User     @relation("FamilyAdmin", fields: [adminId], references: [id])
+  members       User[]   @relation("FamilyMembers")
+  driveFolderId String?  // ID de la carpeta en Google Drive
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("family_nuclei")
 }
