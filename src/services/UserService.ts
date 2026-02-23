@@ -77,7 +77,8 @@ export class UserService {
             documentNumber: prismaUser.documentNumber || undefined,
             documentType: prismaUser.documentType || undefined,
             familyId: prismaUser.familyId || undefined,
-            documentsUploaded: prismaUser.documentsUploaded
+            documentsUploaded: prismaUser.documentsUploaded,
+            driveFolderId: prismaUser.driveFolderId || undefined
         };
     }
 }

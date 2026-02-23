@@ -48,6 +48,7 @@ export const clientSchema = z.object({
     validations: z.string().optional().describe('Historial Validaciones'),
     notes: z.string().optional().describe('Historial Notas'),
     familyId: z.string().optional().describe('ID Nucleo Familiar'),
+    driveFolderId: z.string().optional().describe('ID Carpeta Drive'),
 });
 
 export type Client = z.infer<typeof clientSchema>;
@@ -84,5 +85,6 @@ export const CLIENT_SHEET_HEADERS = [
     'Notas Pendientes',
     'Historial Validaciones',
     'Historial Notas',
-    'ID Nucleo Familiar'
+    'ID Nucleo Familiar',
+    'ID Carpeta Drive'
 ];

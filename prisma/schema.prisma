@@ -33,6 +33,7 @@ model User {
   family            FamilyNucleus? @relation("FamilyMembers", fields: [familyId], references: [id])
   adminOf           FamilyNucleus? @relation("FamilyAdmin")
   documentsUploaded Boolean  @default(false)
+  driveFolderId     String?  // ID de la carpeta personal en Google Drive
 
   @@map("users")
 }

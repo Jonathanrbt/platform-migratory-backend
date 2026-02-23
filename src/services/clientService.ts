@@ -3,6 +3,7 @@ import { DriveService } from './googleDrive/driveService';
 import { Client } from '../models/Client';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '../utils/AppError';
+import prisma from '../config/prisma';
 
 export class ClientService {
     private clientSheetsService: ClientSheetsService;
@@ -64,12 +65,24 @@ export class ClientService {
             notes = notes ? `${notes}\n${systemNote}` : systemNote;
         }
 
+        // 3.5 Check for existing Drive Folder ID in Prisma (User table)
+        let existingDriveFolderId = clientData.driveFolderId;
+        if (!existingDriveFolderId && clientData.email) {
+            const user = await prisma.user.findUnique({
+                where: { email: clientData.email }
+            });
+            if (user?.driveFolderId) {
+                existingDriveFolderId = user.driveFolderId;
+            }
+        }
+
         const newClient: Client = {
             ...clientData,
             id,
             status,
             registrationDate,
-            notes
+            notes,
+            driveFolderId: existingDriveFolderId // Ensure it's carried over
         };
 
         // 4. Guardar en Google Sheets (Incluso si es rechazado por regla legal, para trazabilidad)
@@ -80,15 +93,59 @@ export class ClientService {
             throw new AppError('Su solicitud ha sido registrada pero no cumple con el requisito legal de permanencia mínima (entrada antes del 31/12/2025). Un asesor podría contactarle para más detalles.', 400);
         }
 
+        // --- Drive and DB Sync ---
+        let finalFolderId: string | undefined = existingDriveFolderId;
         try {
-            // 5. Crear estructura en Drive (Solo si no fue rechazado de entrada por regla legal, opcional)
-            await this.driveService.createClientFolderStructure(id, newClient.firstName, newClient.lastName, options?.familyDriveFolderId);
-        } catch (error) {
-            console.error(`Failed to create Drive structure for client ${id}:`, error);
-            await this.clientSheetsService.update(id, { 
-                status: 'Error en Sistema' as any 
+            // 5. Determine parent folder for Drive
+            let parentDriveFolderId = options?.familyDriveFolderId;
+            if (!parentDriveFolderId && newClient.familyId) {
+                const family = await prisma.familyNucleus.findUnique({
+                    where: { id: newClient.familyId },
+                    select: { driveFolderId: true }
+                });
+                if (family?.driveFolderId) {
+                    parentDriveFolderId = family.driveFolderId;
+                }
+            }
+
+            // 6. Create structure in Drive
+            finalFolderId = await this.driveService.createClientFolderStructure(
+                id,
+                newClient.firstName,
+                newClient.lastName,
+                parentDriveFolderId,
+                existingDriveFolderId
+            );
+
+            // 7. If a new folder was created, update Sheets and Prisma
+            if (finalFolderId && finalFolderId !== existingDriveFolderId) {
+                await this.clientSheetsService.update(id, { driveFolderId: finalFolderId });
+                if (newClient.email) {
+                    await prisma.user.update({
+                        where: { email: newClient.email },
+                        data: { driveFolderId: finalFolderId }
+                    });
+                }
+            }
+        } catch (error: any) {
+            console.error(`Failed to create Drive structure or update Prisma for client ${id}:`, error);
+            
+            // Attempt to roll back Sheets update if Drive/Prisma failed after folder creation
+            if (finalFolderId && finalFolderId !== existingDriveFolderId) {
+                try {
+                    await this.clientSheetsService.update(id, { driveFolderId: existingDriveFolderId || '' });
+                } catch (rollbackError) {
+                    console.error(`CRITICAL: Failed to roll back Sheets update for client ${id}. Data is inconsistent.`, rollbackError);
+                }
+            }
+            
+            // Update status to reflect system error
+            await this.clientSheetsService.update(id, {
+                status: 'Error en Sistema' as any
             });
-            throw new AppError('Client record created but Drive folder structure failed. Please contact support.', 500);
+
+            // Re-throw the original error
+            throw new AppError(error.message || 'Client record created but system sync failed. Please contact support.', 500);
         }
 
         return newClient;

@@ -17,6 +17,7 @@ export const userSchema = z.object({
         .describe('Tipo de Documento (DNI, NIE, Pasaporte, TIE o personalizado)'),
     familyId: z.string().optional().describe('ID del Nucleo Familiar'),
     documentsUploaded: z.boolean().default(false).describe('Documentos Subidos'),
+    driveFolderId: z.string().optional().describe('ID de la carpeta personal en Drive'),
 });
 
 export type User = z.infer<typeof userSchema>;

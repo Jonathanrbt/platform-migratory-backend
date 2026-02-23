@@ -104,6 +104,39 @@ export class DriveService {
         }
     }
 
+    async moveFolder(fileId: string, newParentId: string): Promise<void> {
+        try {
+            // Retrieve the existing parents to remove them
+            const file = await this.drive.files.get({
+                fileId: fileId,
+                fields: 'parents'
+            });
+            const previousParents = (file.data.parents || []).join(',');
+
+            // Move the file to the new folder
+            await this.drive.files.update({
+                fileId: fileId,
+                addParents: newParentId,
+                removeParents: previousParents,
+                fields: 'id, parents'
+            });
+        } catch (error: any) {
+            throw new AppError(`Error moving folder in Drive: ${error.message}`, 500);
+        }
+    }
+
+    async listSubfolders(folderId: string): Promise<{id: string, name: string}[]> {
+        try {
+            const response = await this.drive.files.list({
+                q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                fields: 'files(id, name)'
+            });
+            return (response.data.files as {id: string, name: string}[]) || [];
+        } catch (error: any) {
+            return [];
+        }
+    }
+
     async createFolder(name: string, parentId?: string): Promise<string> {
         try {
             const response = await this.drive.files.create({
@@ -116,28 +149,42 @@ export class DriveService {
             });
             return response.data.id || '';
         } catch (error: any) {
+            console.error('Drive API Error:', error.response?.data || error.message);
             throw new AppError(`Error creating Drive folder: ${error.message}`, 500);
         }
     }
 
-    async createClientFolderStructure(clientId: string, firstName: string, lastName: string, parentFolderId?: string): Promise<void> {
+    async createClientFolderStructure(clientId: string, firstName: string, lastName: string, parentFolderId?: string, existingFolderId?: string): Promise<string> {
         const rootId = parentFolderId || process.env.GOOGLE_DRIVE_CLIENTS_ROOT_ID;
-        if (!rootId) {
-            console.warn('GOOGLE_DRIVE_CLIENTS_ROOT_ID not configured and no parentFolderId provided. Skipping Drive folder creation.');
-            return;
+        if (!rootId && !existingFolderId) {
+            console.warn('GOOGLE_DRIVE_CLIENTS_ROOT_ID not configured and no parentFolderId or existingFolderId provided. Skipping Drive folder creation.');
+            return '';
         }
 
-        // Create a friendly name: Juan_Perez_f312c569
-        const shortId = clientId.split('-')[0];
-        const folderName = `${firstName}_${lastName}_${shortId}`.replace(/\s+/g, '_');
+        let clientFolderId = existingFolderId;
 
-        // 1. Create client main folder
-        const clientFolderId = await this.createFolder(folderName, rootId);
+        if (!clientFolderId) {
+            // Create a friendly name: Juan_Perez_f312c569
+            const shortId = clientId.split('-')[0];
+            const folderName = `${firstName}_${lastName}_${shortId}`.replace(/\s+/g, '_');
 
-        // 2. Create subfolders for document types (based on Master Doc)
-        const docTypes = ['Pasaporte', 'Antecedentes Penales', 'Certificado Empadronamiento', 'Pruebas Permanencia'];
-        for (const type of docTypes) {
-            await this.createFolder(type, clientFolderId);
+            // 1. Create client main folder
+            clientFolderId = await this.createFolder(folderName, rootId);
         }
+
+        // 2. Create subfolders for document types (standardized names)
+        const docSubfolders = ['01_Identidad', '02_Antecedentes', '03_Pruebas_Residencia', '04_Otros'];
+        
+        // List existing subfolders to avoid duplicates if reusing
+        const existingSubs = await this.listSubfolders(clientFolderId);
+        const existingSubNames = existingSubs.map(f => f.name);
+
+        for (const sub of docSubfolders) {
+            if (!existingSubNames.includes(sub)) {
+                await this.createFolder(sub, clientFolderId);
+            }
+        }
+
+        return clientFolderId;
     }
 }
