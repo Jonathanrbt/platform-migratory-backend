@@ -73,7 +73,7 @@ export class UserService {
             firstName: prismaUser.firstName,
             lastName: prismaUser.lastName,
             googleId: prismaUser.googleId || undefined,
-            registrationDate: prismaUser.registrationDate.toISOString(),
+            registrationDate: prismaUser.registrationDate ? new Date(prismaUser.registrationDate).toISOString() : new Date().toISOString(),
             documentNumber: prismaUser.documentNumber || undefined,
             documentType: prismaUser.documentType || undefined,
             familyId: prismaUser.familyId || undefined,
