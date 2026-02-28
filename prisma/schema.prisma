@@ -34,8 +34,39 @@ model User {
   adminOf           FamilyNucleus? @relation("FamilyAdmin")
   documentsUploaded Boolean  @default(false)
   driveFolderId     String?  // ID de la carpeta personal en Google Drive
+  documents         Document[]
 
   @@map("users")
+}
+
+enum DocumentType {
+  PASAPORTE
+  ANTECEDENTES_PENALES
+  CERTIFICADO_EMPADRONAMIENTO
+  PRUEBA_RESIDENCIA
+  OTROS
+}
+
+enum ValidationStatus {
+  VERIFIED
+  MANUAL_REVIEW
+  REJECTED
+}
+
+model Document {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  type        DocumentType
+  driveFileId String           @unique
+  status      ValidationStatus
+  confidence  Float
+  issues      String?          @db.Text
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("documents")
 }
 
 model FamilyNucleus {
