@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getClients, createClient, updateClient, deleteClient, getClientById, getProfile } from '../controllers/clientController';
+import { getClients, createClient, updateClient, deleteClient, getClientById, getProfile, getProgress, submitApplication } from '../controllers/clientController';
 import { validateRequest } from '../middleware/validateRequest';
 import { clientSchema } from '../models/Client';
 import { authMiddleware } from '../middleware/authMiddleware';
@@ -19,9 +19,15 @@ router.get('/', roleMiddleware(['Abogado']), getClients);
 router.get('/:id', roleMiddleware(['Abogado', 'Cliente']), getClientById);
 router.delete('/:id', roleMiddleware(['Abogado']), deleteClient);
 
+// Get progress
+router.get('/:id/progress', roleMiddleware(['Abogado', 'Cliente']), getProgress);
+
+// Submit application
+router.post('/:id/submit', roleMiddleware(['Cliente']), submitApplication);
+
 // Both Abogados and Clientes can update, but logic in controller restricts Clientes
-router.patch('/:id', roleMiddleware(['Abogado', 'Cliente']), updateClient);
-router.put('/:id', roleMiddleware(['Abogado', 'Cliente']), updateClient);
+router.patch('/:id', roleMiddleware(['Abogado', 'Cliente']), validateRequest(clientSchema.partial()), updateClient);
+router.put('/:id', roleMiddleware(['Abogado', 'Cliente']), validateRequest(clientSchema.partial()), updateClient);
 
 // Mount nested routes at the end to avoid intercepting base routes
 router.use('/:clientId/notes', lawyerNoteRoutes);

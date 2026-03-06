@@ -34,11 +34,10 @@ export const clientSchema = z.object({
     status: z.enum([
         'Registro incompleto', 
         'En revisión por abogado', 
-        'Pendiente', 
+        'Requiere subsanación', 
+        'Rechazado', 
         'En proceso', 
         'Aprobado', 
-        'Rechazado', 
-        'Rechazado (Regla Legal)',
         'Archivado', 
         'Error en Sistema'
     ]).optional().default('Registro incompleto').describe('Status'),

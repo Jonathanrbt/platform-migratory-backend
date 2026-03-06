@@ -138,3 +138,79 @@ export const deleteClient = asyncHandler(async (req: Request, res: Response) => 
         message: 'Client archived successfully'
     });
 });
+
+export const getProgress = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const user = req.user as any;
+
+    if (!user) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const client = await clientService.getClientById(id as string);
+
+    if (user.role === 'Cliente' && client.email !== user.email) {
+        throw new AppError('You are not authorized to view this client progress', 403);
+    }
+
+    const progress = await clientService.calculateProgress(id as string);
+
+    res.status(200).json({
+        status: 'success',
+        data: progress
+    });
+});
+
+export const submitApplication = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const user = req.user as any;
+
+    if (!user) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const client = await clientService.getClientById(id as string);
+
+    if (user.role === 'Cliente' && client.email !== user.email) {
+        throw new AppError('You are not authorized to submit this application', 403);
+    }
+
+    const result = await clientService.submitApplication(id as string);
+
+    res.status(200).json(result);
+});
+
+export const reviewClient = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { status, note } = req.body;
+    
+    if (!status) {
+        throw new AppError('Status is required', 400);
+    }
+    
+    const validStatuses = ['Requiere subsanación', 'Rechazado', 'En proceso', 'Aprobado'];
+    if (!validStatuses.includes(status)) {
+        throw new AppError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
+    }
+
+    const client = await clientService.getClientById(id as string);
+    
+    let updatedNotes = client.notes || '';
+    if (note) {
+        const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' '); // YYYY-MM-DD HH:mm
+        const newNote = `[${timestamp}] Abogado: ${note}`;
+        updatedNotes = updatedNotes ? `${updatedNotes}\n${newNote}` : newNote;
+    }
+    
+    // We bypass regular update restrictions since this is an admin/lawyer action
+    const clientSheetsService = (clientService as any).clientSheetsService;
+    await clientSheetsService.update(id as string, { 
+        status: status as any,
+        ...(note && { notes: updatedNotes })
+    });
+
+    res.status(200).json({
+        status: 'success',
+        message: 'Client review updated successfully'
+    });
+});

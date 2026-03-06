@@ -55,7 +55,7 @@ export class ClientService {
         const entryDate = new Date(clientData.entryDate);
         let isRejectedByLegalRule = false;
         if (entryDate > limitDate) {
-            status = 'Rechazado (Regla Legal)';
+            status = 'Rechazado';
             isRejectedByLegalRule = true;
         }
 
@@ -160,16 +160,101 @@ export class ClientService {
                 throw new AppError('You can only edit your own profile', 403);
             }
 
-            // El cliente solo puede editar si el registro está incompleto.
-            // Una vez en revisión o aprobado, ya no puede editar.
-            const allowedStatuses = ['Registro incompleto'];
+            // El cliente solo puede editar si el registro está incompleto, rechazado o requiere subsanación.
+            const allowedStatuses = ['Registro incompleto', 'Requiere subsanación', 'Rechazado'];
             if (!allowedStatuses.includes(currentClient.status || '')) {
                 throw new AppError(`You cannot edit your profile when status is ${currentClient.status}`, 403);
+            }
+
+            // SECURITY PATCH: Prevent clients from updating sensitive fields
+            delete updates.status;
+            delete updates.notes;
+            delete updates.validations;
+            delete updates.lastValidationStatus;
+            delete updates.pendingNotesCount;
+            delete updates.registrationDate;
+            delete updates.familyId;
+            delete updates.driveFolderId;
+            delete updates.id;
+
+            // Audit log para saber qué campos modificó el cliente
+            const updatedFields = Object.keys(updates).filter(key => {
+                // Solo registramos si el valor realmente cambió
+                return updates[key as keyof Client] !== currentClient[key as keyof Client];
+            });
+
+            if (updatedFields.length > 0) {
+                const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+                const systemNote = `[${timestamp}] [SISTEMA]: El cliente actualizó los campos: ${updatedFields.join(', ')}`;
+                updates.notes = currentClient.notes ? `${currentClient.notes}\n${systemNote}` : systemNote;
             }
         }
 
         await this.clientSheetsService.update(id, updates);
         return { ...currentClient, ...updates };
+    }
+
+    async calculateProgress(clientId: string): Promise<{ formProgress: number, docsProgress: number, totalProgress: number }> {
+        const client = await this.getClientById(clientId);
+        
+        // 1. Form Progress (50%)
+        const mandatoryFields = [
+            'firstName', 'lastName', 'fechaNacimiento', 'nacionalidad', 
+            'countryOfBirth', 'sexo', 'estadoCivil', 'email', 'phone', 
+            'direccion', 'province', 'municipality', 'entryDate', 'entryWay', 
+            'stayDuration', 'isRegisteredInTownHall', 'hasCriminalRecord'
+        ];
+        
+        let filledFields = 0;
+        mandatoryFields.forEach(field => {
+            if (client[field as keyof Client] !== undefined && client[field as keyof Client] !== null && client[field as keyof Client] !== '') {
+                filledFields++;
+            }
+        });
+        
+        const formProgress = filledFields === mandatoryFields.length ? 50 : Math.round((filledFields / mandatoryFields.length) * 50);
+
+        // 2. Documents Progress (50%)
+        const mandatoryDocs = [
+            'PASAPORTE', 'ANTECEDENTES_PENALES', 'CERTIFICADO_EMPADRONAMIENTO', 'PRUEBA_RESIDENCIA'
+        ];
+        
+        const documents = await prisma.document.findMany({
+            where: {
+                userId: clientId,
+                type: { in: mandatoryDocs as any }
+            }
+        });
+
+        let validDocs = 0;
+        // Solo un documento válido por tipo, que cumpla la regla estricta: VERIFIED y driveFileId existente
+        const validDocTypes = new Set();
+        
+        documents.forEach(doc => {
+            if (doc.status === 'VERIFIED' && doc.driveFileId && !validDocTypes.has(doc.type)) {
+                validDocs++;
+                validDocTypes.add(doc.type);
+            }
+        });
+
+        const docsProgress = validDocs * 12.5;
+
+        return {
+            formProgress,
+            docsProgress,
+            totalProgress: formProgress + docsProgress
+        };
+    }
+
+    async submitApplication(clientId: string) {
+        const progress = await this.calculateProgress(clientId);
+        
+        if (progress.totalProgress < 100) {
+            throw new AppError(`No se puede enviar la solicitud. El progreso no está al 100% (Actual: ${progress.totalProgress}%)`, 400);
+        }
+
+        await this.clientSheetsService.update(clientId, { status: 'En revisión por abogado' });
+        return { status: 'success', message: 'Application submitted successfully' };
     }
 
     async archiveClient(id: string) {
