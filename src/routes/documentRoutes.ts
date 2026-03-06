@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import * as documentController from '../controllers/documentController';
 import { authMiddleware } from '../middleware/authMiddleware';
+import { requireEditableStatus } from '../middleware/clientStatusMiddleware';
 import { AppError } from '../utils/AppError';
 
 const router = express.Router();
@@ -20,9 +21,9 @@ const upload = multer({
     }
 });
 
-router.post('/upload', authMiddleware, upload.single('file'), documentController.uploadDocument);
-router.put('/update', authMiddleware, upload.single('file'), documentController.updateDocument);
-router.delete('/:documentType', authMiddleware, documentController.deleteDocument);
+router.post('/upload', authMiddleware, requireEditableStatus, upload.single('file'), documentController.uploadDocument);
+router.put('/update', authMiddleware, requireEditableStatus, upload.single('file'), documentController.updateDocument);
+router.delete('/:documentType', authMiddleware, requireEditableStatus, documentController.deleteDocument);
 router.get('/status', authMiddleware, documentController.getDocumentStatus);
 
 export default router;
