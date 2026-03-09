@@ -89,9 +89,11 @@ export const createClient = asyncHandler(async (req: Request, res: Response) => 
 
     const familyDriveFolderId = userDetails?.family?.driveFolderId || undefined;
     const familyId = userDetails?.familyId || undefined;
+    const documentType = req.body.documentType || userDetails?.documentType || undefined;
+    const documentNumber = req.body.documentNumber || userDetails?.documentNumber || undefined;
 
-    // Add familyId to client data if present, and use user.id as client.id
-    const clientData = { ...req.body, id: user.id, familyId };
+    // Add familyId, documentType, documentNumber to client data if present, and use user.id as client.id
+    const clientData = { ...req.body, id: user.id, familyId, documentType, documentNumber };
 
     const newClient = await clientService.registerClient(clientData, { familyDriveFolderId });
     
@@ -113,6 +115,24 @@ export const updateClient = asyncHandler(async (req: Request, res: Response) => 
 
     if (!id) {
         throw new AppError('Client ID is required', 400);
+    }
+
+    // Si el usuario es cliente, nos aseguramos de que el documento y tipo de documento
+    // esten siempre presentes usando la base de datos (por si hubo un error previo donde no se guardaron)
+    if (user.role === 'Cliente') {
+        const userDetails = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { documentType: true, documentNumber: true }
+        });
+
+        if (userDetails) {
+            if (!updates.documentType && userDetails.documentType) {
+                updates.documentType = userDetails.documentType;
+            }
+            if (!updates.documentNumber && userDetails.documentNumber) {
+                updates.documentNumber = userDetails.documentNumber;
+            }
+        }
     }
 
     const updatedClient = await clientService.updateClient(id as string, updates, user);
