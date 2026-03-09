@@ -77,13 +77,21 @@ export const googleCallback = asyncHandler(async (req: Request, res: Response) =
 
     console.info('[googleCallback] Proceeding to exchange code for tokens...');
     const result = await authService.googleCallbackLogin(code);
-    
-    // Redirigir al frontend con el token en la URL (Opción A solicitada)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    console.info(`[googleCallback] Successful login. Redirecting to frontend: ${frontendUrl}/login/success...`);
-    res.redirect(`${frontendUrl}/login/success?token=${result.token}`);
-});
 
+    // Verificar si el usuario ya completó su perfil (tiene tipo y número de documento)
+    const isProfileComplete = Boolean(result.user.documentType && result.user.documentNumber);
+
+    // Redirigir al frontend con el token en la URL y el estado del perfil
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    if (isProfileComplete) {
+        console.info(`[googleCallback] Successful login. Profile complete. Redirecting to frontend: ${frontendUrl}/login/success...`);
+        res.redirect(`${frontendUrl}/login/success?token=${result.token}&profileComplete=true`);
+    } else {
+        console.info(`[googleCallback] Successful login. Profile INCOMPLETE. Redirecting to frontend to complete profile...`);
+        res.redirect(`${frontendUrl}/login/success?token=${result.token}&profileComplete=false`);
+    }
+    });
 export const completeProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const { documentType, documentNumber } = req.body;
