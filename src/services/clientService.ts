@@ -38,18 +38,6 @@ export class ClientService {
 
         // --- Lógica de Negocio ---
 
-        // 1. Validación de mayoría de edad (Opcional si Zod no lo hace, pero recomendable aquí)
-        const birthDate = new Date(clientData.fechaNacimiento);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
-        }
-        if (age < 18) {
-            throw new AppError('El solicitante debe ser mayor de edad.', 400);
-        }
-
         // 2. Regla legal: Fecha de entrada (31/12/2025)
         const limitDate = new Date('2025-12-31');
         const entryDate = new Date(clientData.entryDate);
