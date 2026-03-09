@@ -323,6 +323,33 @@ export class FamilyService {
         // Fetch all clients from Sheets to check status
         const clients = await clientSheetsService.findAll();
 
+        const mandatoryDocs = [
+            'PASAPORTE', 'ANTECEDENTES_PENALES', 'CERTIFICADO_EMPADRONAMIENTO', 'PRUEBA_RESIDENCIA'
+        ];
+
+        const memberIds = family.members.map(m => m.id);
+
+        const documents = await prisma.document.findMany({
+            where: {
+                userId: { in: memberIds },
+                type: { in: mandatoryDocs as any },
+                status: 'VERIFIED'
+            }
+        });
+
+        // Map documents by userId and count unique document types
+        const memberValidDocsCount: Record<string, number> = {};
+        family.members.forEach(m => {
+            const memberDocs = documents.filter(d => d.userId === m.id);
+            const validDocTypes = new Set();
+            memberDocs.forEach(doc => {
+                if (doc.driveFileId && !validDocTypes.has(doc.type)) {
+                    validDocTypes.add(doc.type);
+                }
+            });
+            memberValidDocsCount[m.id] = validDocTypes.size;
+        });
+
         return {
             familyId: family.id,
             familyName: family.name,
@@ -330,6 +357,14 @@ export class FamilyService {
             createdAt: family.createdAt,
             members: family.members.map(m => {
                 const clientRecord = clients.find(c => c.email.toLowerCase() === m.email.toLowerCase());
+                
+                const uploadedCount = memberValidDocsCount[m.id] || 0;
+                const totalRequired = 4;
+                const isComplete = uploadedCount >= totalRequired;
+                const message = isComplete 
+                    ? "Todos los documentos han sido subidos" 
+                    : `Proceso de los documentos incompletos lleva ${uploadedCount} de ${totalRequired}`;
+
                 return {
                     id: m.id,
                     fullName: `${m.firstName} ${m.lastName}`,
@@ -338,7 +373,13 @@ export class FamilyService {
                     role: m.id === family.adminId ? 'ADMIN' : 'MEMBER',
                     status: {
                         formRegistered: !!clientRecord,
-                        documentsUploaded: m.documentsUploaded,
+                        documentsUploaded: isComplete,
+                        documentProgress: {
+                            uploadedCount,
+                            totalRequired,
+                            message,
+                            isComplete
+                        },
                         clientStatus: clientRecord?.status || 'No iniciado'
                     }
                 };
