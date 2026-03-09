@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { UserService } from './UserService';
 import { User } from '../models/User';
@@ -8,8 +9,15 @@ import { AppError } from '../utils/AppError';
 const JWT_SECRET = process.env.JWT_SECRET || 'c3c7962c344bd330bdef829c2674adee50da48072041faef7abc347e5f3f937b';
 const JWT_EXPIRES_IN = '24h';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
 
-const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+// Se necesita el clientSecret y el redirectUri para el server-side flow
+const googleClient = new OAuth2Client(
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI
+);
 const userService = new UserService();
 
 export class AuthService {
@@ -106,8 +114,96 @@ export class AuthService {
         }
     }
 
+    generateGoogleAuthUrl(): { url: string; state: string } {
+        // Genera un state criptográficamente seguro
+        const state = crypto.randomBytes(32).toString('hex');
+
+        // Genera la URL de autorización
+        const url = googleClient.generateAuthUrl({
+            access_type: 'offline', // Para obtener refresh token si es necesario después
+            scope: [
+                'https://www.googleapis.com/auth/userinfo.profile',
+                'https://www.googleapis.com/auth/userinfo.email',
+            ],
+            state: state,
+            prompt: 'consent' // Fuerza a que vuelva a pedir permisos (opcional, útil para obtener refresh token siempre)
+        });
+
+        return { url, state };
+    }
+
+    async googleCallbackLogin(code: string): Promise<{ user: User; token: string }> {
+        try {
+            console.info('[AuthService.googleCallbackLogin] Starting token exchange with Google...');
+            // Intercambia el código por tokens
+            const { tokens } = await googleClient.getToken(code);
+            console.info('[AuthService.googleCallbackLogin] Tokens received successfully');
+            
+            // Configura los tokens en el cliente para poder hacer peticiones (ej. obtener info del usuario)
+            googleClient.setCredentials(tokens);
+
+            // Obtiene la información del usuario usando el idToken provisto por Google
+            if (!tokens.id_token) {
+                 console.error('[AuthService.googleCallbackLogin] Error: No id_token received');
+                 throw new AppError('No id_token received from Google', 400);
+            }
+
+            console.info('[AuthService.googleCallbackLogin] Verifying Google idToken...');
+            const ticket = await googleClient.verifyIdToken({
+                idToken: tokens.id_token,
+                audience: GOOGLE_CLIENT_ID,
+            });
+
+            const payload = ticket.getPayload();
+            
+            if (!payload || !payload.email) {
+                console.error('[AuthService.googleCallbackLogin] Error: Invalid payload or missing email');
+                throw new AppError('Invalid Google payload info', 400);
+            }
+
+            console.info(`[AuthService.googleCallbackLogin] Payload verified for email: ${payload.email}`);
+
+            // A partir de aquí, la lógica es idéntica al googleLogin existente
+            let user = await userService.getUserByEmail(payload.email);
+
+            if (!user) {
+                console.info(`[AuthService.googleCallbackLogin] User not found in DB. Creating new user for: ${payload.email}`);
+                // Auto-register Google users
+                const newUser: User = {
+                    email: payload.email,
+                    firstName: payload.given_name || 'Google',
+                    lastName: payload.family_name || 'User',
+                    role: 'Cliente',
+                    googleId: payload.sub,
+                    documentType: undefined,
+                    id: require('uuid').v4(),
+                    registrationDate: new Date().toISOString(),
+                    documentsUploaded: false
+                };
+                user = await userService.create(newUser);
+                console.info('[AuthService.googleCallbackLogin] New user created successfully.');
+            } else {
+                console.info(`[AuthService.googleCallbackLogin] User found in DB for: ${payload.email}`);
+            }
+
+            if (!user) throw new AppError('Error with Google callback login', 500);
+
+            console.info('[AuthService.googleCallbackLogin] Generating JWT token and finishing login process.');
+            const token = this.generateToken(user);
+            return { user, token };
+
+        } catch (error: any) {
+            console.error('[AuthService] Error in googleCallbackLogin:', error);
+            throw new AppError(`Google server-side authentication failed: ${error.message}`, 401);
+        }
+    }
+
     async completeProfile(userId: string, data: { documentType: string; documentNumber: string }): Promise<User> {
         return await userService.updateDocumentInfo(userId, data.documentType, data.documentNumber);
+    }
+
+    async getUserById(userId: string): Promise<User | null> {
+        return await userService.getUserById(userId);
     }
 
     private generateToken(user: User): string {
