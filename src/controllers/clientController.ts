@@ -203,6 +203,7 @@ export const submitApplication = asyncHandler(async (req: Request, res: Response
 export const reviewClient = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status, note } = req.body;
+    const user = req.user as any;
     
     if (!status) {
         throw new AppError('Status is required', 400);
@@ -228,6 +229,18 @@ export const reviewClient = asyncHandler(async (req: Request, res: Response) => 
         status: status as any,
         ...(note && { notes: updatedNotes })
     });
+
+    // Create AuditLog entry
+    if (user && user.id) {
+        await prisma.auditLog.create({
+            data: {
+                lawyerId: user.id,
+                clientId: id as string,
+                action: 'STATUS_CHANGE',
+                details: `Status changed to ${status}${note ? '. Note added.' : ''}`
+            }
+        });
+    }
 
     res.status(200).json({
         status: 'success',

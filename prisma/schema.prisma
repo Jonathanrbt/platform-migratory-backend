@@ -81,3 +81,14 @@ model FamilyNucleus {
 
   @@map("family_nuclei")
 }
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  lawyerId    String
+  clientId    String   // ID from Google Sheets
+  action      String   // e.g., "STATUS_CHANGE", "NOTE_ADDED"
+  details     String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
