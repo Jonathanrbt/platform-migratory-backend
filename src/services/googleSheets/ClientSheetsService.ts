@@ -17,18 +17,25 @@ export class ClientSheetsService extends BaseRepository<Client> {
         let clients = await this.findAll();
 
         if (options.status) {
+            const statusList = options.status.split(',').map(s => s.trim().toLowerCase());
             clients = clients.filter(c => 
-                c.status?.toLowerCase() === options.status?.toLowerCase()
+                c.status && statusList.includes(c.status.toLowerCase())
             );
         }
 
         if (options.search) {
             const search = options.search.toLowerCase();
-            clients = clients.filter(c => 
-                Object.values(c).some(val => 
+            clients = clients.filter(c => {
+                const searchFields = [
+                    c.firstName,
+                    c.lastName,
+                    c.email,
+                    c.documentNumber
+                ];
+                return searchFields.some(val => 
                     val?.toString().toLowerCase().includes(search)
-                )
-            );
+                );
+            });
         }
 
         if (options.sort) {

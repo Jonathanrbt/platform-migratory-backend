@@ -42,6 +42,7 @@ export const clientSchema = z.object({
         'Error en Sistema'
     ]).optional().default('Registro incompleto').describe('Status'),
     registrationDate: z.string().optional().describe('Fecha Registro'),
+    lastUpdatedDate: z.string().optional().describe('Fecha Ultima Actualizacion'),
     lastValidationStatus: z.string().optional().describe('Ultimo Estado Validacion'),
     pendingNotesCount: z.number().optional().describe('Notas Pendientes'),
     validations: z.string().optional().describe('Historial Validaciones'),
@@ -80,6 +81,7 @@ export const CLIENT_SHEET_HEADERS = [
     'Fecha Antecedentes',
     'Status',
     'Fecha Registro',
+    'Fecha Ultima Actualizacion',
     'Ultimo Estado Validacion',
     'Notas Pendientes',
     'Historial Validaciones',

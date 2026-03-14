@@ -15,7 +15,49 @@ export class ClientService {
     }
 
     async getAllClients(options: any) {
-        return await this.clientSheetsService.getClients(options);
+        const { page = 1, limit = 20, type, ...sheetOptions } = options;
+        
+        // Obtenemos todos los clientes de Sheets sin paginar para poder mapear y filtrar por 'type'
+        const { clients } = await this.clientSheetsService.getClients(sheetOptions);
+        
+        // Determinar "Cabeza de familia" consultando Prisma
+        const families = await prisma.familyNucleus.findMany({
+            select: { adminId: true }
+        });
+        const adminIds = new Set(families.map(f => f.adminId));
+
+        let mappedClients = clients.map(c => {
+            let applicantType = 'Individual';
+            if (c.familyId) {
+                if (adminIds.has(c.id!)) {
+                    applicantType = 'Cabeza de familia';
+                } else {
+                    applicantType = 'Miembro';
+                }
+            }
+
+            return {
+                id: c.id,
+                Nombre: `${c.firstName} ${c.lastName}`.trim(),
+                Documento: c.documentNumber || 'N/A',
+                Correo: c.email,
+                Tipo: applicantType,
+                Estado: c.status,
+                lastUpdatedDate: c.lastUpdatedDate || c.registrationDate
+            };
+        });
+
+        if (type) {
+            const typesArray = type.split(',').map((t: string) => t.trim().toLowerCase());
+            mappedClients = mappedClients.filter(c => typesArray.includes(c.Tipo.toLowerCase()));
+        }
+
+        const total = mappedClients.length;
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        const paginatedClients = mappedClients.slice(start, end);
+
+        return { clients: paginatedClients, total };
     }
 
     async getClientById(id: string) {
@@ -33,6 +75,7 @@ export class ClientService {
     async registerClient(clientData: Client, options?: { familyDriveFolderId?: string }) {
         const id = clientData.id || uuidv4();
         const registrationDate = clientData.registrationDate || new Date().toISOString();
+        const lastUpdatedDate = registrationDate; // NEW: Set lastUpdatedDate on creation
         let status = clientData.status || 'Registro incompleto';
         let notes = clientData.notes || '';
 
@@ -69,6 +112,7 @@ export class ClientService {
             id,
             status,
             registrationDate,
+            lastUpdatedDate,
             notes,
             driveFolderId: existingDriveFolderId // Ensure it's carried over
         };
@@ -177,6 +221,8 @@ export class ClientService {
                 updates.notes = currentClient.notes ? `${currentClient.notes}\n${systemNote}` : systemNote;
             }
         }
+
+        updates.lastUpdatedDate = new Date().toISOString();
 
         await this.clientSheetsService.update(id, updates);
         return { ...currentClient, ...updates };

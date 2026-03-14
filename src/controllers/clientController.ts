@@ -12,8 +12,9 @@ export const getClients = asyncHandler(async (req: Request, res: Response) => {
     const status = req.query.status as string;
     const search = req.query.search as string;
     const sort = req.query.sort as string;
+    const type = req.query.type as string; // NEW: filter by type (Individual, Cabeza de familia, Miembro)
 
-    const { clients, total } = await clientService.getAllClients({ page, limit, status, search, sort });
+    const { clients, total } = await clientService.getAllClients({ page, limit, status, search, sort, type });
 
     res.status(200).json({
         status: 'success',
@@ -227,6 +228,7 @@ export const reviewClient = asyncHandler(async (req: Request, res: Response) => 
     const clientSheetsService = (clientService as any).clientSheetsService;
     await clientSheetsService.update(id as string, { 
         status: status as any,
+        lastUpdatedDate: new Date().toISOString(),
         ...(note && { notes: updatedNotes })
     });
 
