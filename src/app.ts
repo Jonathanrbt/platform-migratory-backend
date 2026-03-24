@@ -26,7 +26,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/clients', clientRoutes);
 app.use('/api/v1/lawyer/clients', lawyerClientRoutes);
 app.use('/api/v1/lawyer/dashboard', lawyerDashboardRoutes);
-app.use('/api/v1/family', familyRoutes);
+app.use('/api/v1/families', familyRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/documents', documentRoutes);
 

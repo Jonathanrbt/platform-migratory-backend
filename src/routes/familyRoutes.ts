@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // Search user by document number for family inclusion
-router.get('/search/:documentNumber', searchUserByDocument);
+router.get('/candidates/:documentNumber', searchUserByDocument);
 
 // Create a new family (user becomes admin)
 router.post('/', createFamily);
@@ -20,6 +20,6 @@ router.post('/members', addMember);
 router.delete('/members/:memberId', removeMember);
 
 // Get family details (available to all members)
-router.get('/details', getFamilyDetails);
+router.get('/me', getFamilyDetails);
 
 export default router;

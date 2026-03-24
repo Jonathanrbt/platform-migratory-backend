@@ -21,9 +21,9 @@ const upload = multer({
     }
 });
 
-router.post('/upload', authMiddleware, requireEditableStatus, upload.single('file'), documentController.uploadDocument);
-router.put('/update', authMiddleware, requireEditableStatus, upload.single('file'), documentController.updateDocument);
+router.post('/', authMiddleware, requireEditableStatus, upload.single('file'), documentController.uploadDocument);
+router.put('/:documentType', authMiddleware, requireEditableStatus, upload.single('file'), documentController.updateDocument);
 router.delete('/:documentType', authMiddleware, requireEditableStatus, documentController.deleteDocument);
-router.get('/status', authMiddleware, documentController.getDocumentStatus);
+router.get('/', authMiddleware, documentController.getDocumentStatus);
 
 export default router;
