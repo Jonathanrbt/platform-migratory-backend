@@ -60,7 +60,7 @@ export const getDocumentStatus = async (req: Request, res: Response, next: NextF
 export const updateDocument = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = req.user?.id;
-        const { documentType } = req.body;
+        const { documentType } = req.params;
         const file = req.file;
 
         console.log(`[DocumentController] Received update request - User: ${userId}, Type: ${documentType}`);
@@ -77,7 +77,7 @@ export const updateDocument = async (req: Request, res: Response, next: NextFunc
             throw new AppError('Document type is required', 400);
         }
 
-        const result = await documentService.updateDocument(userId, file, documentType);
+        const result = await documentService.updateDocument(userId, file, documentType as string);
 
         res.status(200).json({
             status: 'success',

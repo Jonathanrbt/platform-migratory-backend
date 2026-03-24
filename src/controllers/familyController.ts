@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { FamilyService } from '../services/FamilyService';
 import { AppError } from '../utils/AppError';
+import prisma from '../config/prisma';
 
 const familyService = new FamilyService();
 
@@ -23,7 +24,7 @@ export const createFamily = async (req: Request, res: Response, next: NextFuncti
         }
 
         const family = await familyService.createFamily(adminId, name, members);
-        res.status(201).json(family);
+        res.status(201).json({ status: 'success', data: family });
     } catch (error) {
         next(error);
     }
@@ -38,7 +39,7 @@ export const searchUserByDocument = async (req: Request, res: Response, next: Ne
         }
 
         const user = await familyService.searchByDocument(documentNumber as string);
-        res.status(200).json(user);
+        res.status(200).json({ status: 'success', data: user });
     } catch (error) {
         next(error);
     }
@@ -54,7 +55,7 @@ export const addMember = async (req: Request, res: Response, next: NextFunction)
         }
 
         const member = await familyService.addMember(userId, documentNumber);
-        res.status(200).json(member);
+        res.status(200).json({ status: 'success', data: member });
     } catch (error) {
         next(error);
     }
@@ -97,6 +98,30 @@ export const getFamilyDetails = async (req: Request, res: Response, next: NextFu
                 hasFamily: true,
                 family: details
             }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getFamilyMembersByLawyer = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params; // client ID
+
+        // Find client's family ID
+        const client = await prisma.user.findUnique({ where: { id: id as string }, select: { familyId: true } });
+        if (!client || !client.familyId) {
+            return res.status(200).json({ status: 'success', data: { members: [] } });
+        }
+
+        // Reuse FamilyService to get the family status, which already fetches from Sheets and Prisma
+        // The familyService expects the userId (in our case the client ID) or it can fetch by the admin, 
+        // looking at getFamilyDetails it expects userId, so we pass `id`
+        const familyStatus = await familyService.getFamilyStatus(id as string); 
+
+        res.status(200).json({
+            status: 'success',
+            data: familyStatus
         });
     } catch (error) {
         next(error);

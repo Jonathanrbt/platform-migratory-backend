@@ -1,50 +1,38 @@
+import { BaseRepository } from './BaseRepository';
 import { ClientSheetsService } from './ClientSheetsService';
-import { LawyerNote } from '../../models/LawyerNote';
-import { AppError } from '../../utils/AppError';
+import { LawyerNote, lawyerNoteSchema } from '../../models/LawyerNote';
+import { v4 as uuidv4 } from 'uuid';
 
-export class NoteSheetsService {
+export class NoteSheetsService extends BaseRepository<LawyerNote> {
     private clientSheetsService: ClientSheetsService;
 
     constructor() {
+        super('NotasAbogado', lawyerNoteSchema, 'id');
         this.clientSheetsService = new ClientSheetsService();
     }
 
-    async create(note: LawyerNote): Promise<void> {
-        const client = await this.clientSheetsService.findById(note.clientId);
-        if (!client) {
-            throw new AppError(`Client with ID ${note.clientId} not found`, 404);
-        }
+    async createNote(noteData: LawyerNote): Promise<LawyerNote> {
+        const id = noteData.id || uuidv4();
+        const date = noteData.date || new Date().toISOString();
+        const newNote: LawyerNote = { ...noteData, id, date };
 
-        // Parse existing notes or start with empty array
-        const currentNotes: LawyerNote[] = client.notes 
-            ? JSON.parse(client.notes) 
-            : [];
+        // Añadir registro en la hoja de NotasAbogado
+        await this.create(newNote);
 
-        // Add new note
-        currentNotes.push({
-            ...note,
-            date: note.date || new Date().toISOString()
-        });
+        // Actualizar contador en la hoja del Cliente
+        await this.updatePendingNotesCount(newNote.clientId);
 
-        // Calculate pending notes
-        const pendingCount = currentNotes.filter(n => n.status === 'Pending').length;
-
-        // Update client row
-        await this.clientSheetsService.update(note.clientId, {
-            notes: JSON.stringify(currentNotes),
-            pendingNotesCount: pendingCount
-        });
+        return newNote;
     }
 
     async getLawyerNotes(clientId: string): Promise<LawyerNote[]> {
-        const client = await this.clientSheetsService.findById(clientId);
-        if (!client || !client.notes) return [];
+        const allNotes = await this.findAll();
+        return allNotes.filter(n => n.clientId === clientId);
+    }
 
-        try {
-            return JSON.parse(client.notes);
-        } catch (error) {
-            console.error(`Error parsing notes for client ${clientId}:`, error);
-            return [];
-        }
+    private async updatePendingNotesCount(clientId: string): Promise<void> {
+        const clientNotes = await this.getLawyerNotes(clientId);
+        const pendingCount = clientNotes.filter(n => n.status === 'Pending').length;
+        await this.clientSheetsService.update(clientId, { pendingNotesCount: pendingCount });
     }
 }

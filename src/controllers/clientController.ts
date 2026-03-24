@@ -215,21 +215,33 @@ export const reviewClient = asyncHandler(async (req: Request, res: Response) => 
         throw new AppError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
 
+    if (status === 'Requiere subsanación' && (!note || note.trim() === '')) {
+        throw new AppError('Debe incluir un mensaje para el cliente explicando el motivo de la subsanación.', 400);
+    }
+
     const client = await clientService.getClientById(id as string);
+    const clientSheetsService = (clientService as any).clientSheetsService;
     
-    let updatedNotes = client.notes || '';
     if (note) {
-        const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' '); // YYYY-MM-DD HH:mm
-        const newNote = `[${timestamp}] Abogado: ${note}`;
-        updatedNotes = updatedNotes ? `${updatedNotes}\n${newNote}` : newNote;
+        // Insert a new LawyerNote conforming to schema
+        const NoteSheetsService = require('../services/googleSheets/NoteSheetsService').NoteSheetsService;
+        const noteService = new NoteSheetsService();
+        await noteService.createNote({
+            clientId: id as string,
+            lawyerName: user?.email || 'Sistema Abogado',
+            category: 'Revisión',
+            note: note,
+            priority: 'High',
+            status: 'Pending'
+        });
+        // Note: createNote already updates the pendingNotesCount on the client
     }
     
     // We bypass regular update restrictions since this is an admin/lawyer action
-    const clientSheetsService = (clientService as any).clientSheetsService;
+    // We only update status and lastUpdatedDate here, pendingNotesCount is handled by createNote
     await clientSheetsService.update(id as string, { 
         status: status as any,
-        lastUpdatedDate: new Date().toISOString(),
-        ...(note && { notes: updatedNotes })
+        lastUpdatedDate: new Date().toISOString()
     });
 
     // Create AuditLog entry

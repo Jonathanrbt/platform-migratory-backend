@@ -68,15 +68,35 @@ export abstract class BaseRepository<T extends Record<string, any>> {
         if (this.columnMap.size > 0) return;
 
         try {
-            const response = await this.sheets.spreadsheets.values.get({
-                spreadsheetId: this.spreadsheetId,
-                range: `${this.sheetName}!A1:AZ1`,
-            });
-
-            let headers = response.data.values?.[0] || [];
+            let headers: any[] = [];
+            
+            try {
+                const response = await this.sheets.spreadsheets.values.get({
+                    spreadsheetId: this.spreadsheetId,
+                    range: `${this.sheetName}!A1:AZ1`,
+                });
+                headers = response.data.values?.[0] || [];
+            } catch (error: any) {
+                if (error.message && error.message.includes('Unable to parse range')) {
+                    console.log(`Sheet "${this.sheetName}" not found. Creating it...`);
+                    await this.sheets.spreadsheets.batchUpdate({
+                        spreadsheetId: this.spreadsheetId,
+                        requestBody: {
+                            requests: [{
+                                addSheet: {
+                                    properties: { title: this.sheetName }
+                                }
+                            }]
+                        }
+                    });
+                    // Headers will be empty, so they will be initialized in the next step
+                } else {
+                    throw error;
+                }
+            }
 
             // If headers are missing or sheet is empty, initialize them
-            if (headers.length === 0 || headers.every(h => !h)) {
+            if (headers.length === 0 || headers.every((h: any) => !h)) {
                 headers = Array.from(this.propertyToHeader.values())
                     .map(h => h.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '));
                 
@@ -95,11 +115,25 @@ export abstract class BaseRepository<T extends Record<string, any>> {
             });
 
             // Double check: if a property doesn't have a column, the repository won't work correctly
+            let missingHeadersAdded = false;
             for (const [prop, header] of this.propertyToHeader.entries()) {
                 if (!this.columnMap.has(header)) {
                     console.warn(`Warning: Header "${header}" for property "${prop}" not found in sheet "${this.sheetName}". Adding it...`);
-                    // Logic to append missing header could go here if needed
+                    // Format the header for display (capitalize first letter of each word)
+                    const displayHeader = header.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                    headers.push(displayHeader);
+                    this.columnMap.set(header, headers.length - 1);
+                    missingHeadersAdded = true;
                 }
+            }
+
+            if (missingHeadersAdded) {
+                await this.sheets.spreadsheets.values.update({
+                    spreadsheetId: this.spreadsheetId,
+                    range: `${this.sheetName}!A1`,
+                    valueInputOption: 'USER_ENTERED',
+                    requestBody: { values: [headers] },
+                });
             }
         } catch (error: any) {
             throw new AppError(`Failed to initialize repository for ${this.sheetName}: ${error.message}`, 500);

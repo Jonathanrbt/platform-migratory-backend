@@ -10,7 +10,7 @@ const router = Router({ mergeParams: true });
 router.use(authMiddleware);
 router.use(roleMiddleware(['Abogado']));
 
-router.post('/', validateRequest(lawyerNoteSchema), createNote);
+router.post('/', createNote);
 router.get('/', getNotesByClient);
 
 export default router;

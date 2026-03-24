@@ -240,4 +240,29 @@ export class DriveService {
             throw new AppError(`Error deleting file from Drive: ${error.message}`, 500);
         }
     }
+
+    async getFileStream(fileId: string): Promise<any> {
+        const res = await this.drive.files.get(
+            { fileId, alt: 'media' },
+            { responseType: 'stream' }
+        );
+        return res.data;
+    }
+
+    async fileExists(fileId: string): Promise<boolean> {
+        try {
+            await this.drive.files.get({
+                fileId,
+                fields: 'id',
+                supportsAllDrives: true,
+            });
+            return true;
+        } catch (error: any) {
+            if (error.status === 404 || error.code === 404) {
+                return false;
+            }
+            console.warn(`[DriveService] Error checking existence for file ${fileId}:`, error.message);
+            return false;
+        }
+    }
 }

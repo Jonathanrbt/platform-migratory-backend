@@ -4,6 +4,7 @@ import { validateRequest } from '../middleware/validateRequest';
 import { clientSchema } from '../models/Client';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { roleMiddleware } from '../middleware/roleMiddleware';
+import { auditProfileChanges } from '../middleware/auditMiddleware';
 import lawyerNoteRoutes from './lawyerNoteRoutes';
 
 const router = Router();
@@ -26,8 +27,8 @@ router.get('/:id/progress', roleMiddleware(['Abogado', 'Cliente']), getProgress)
 router.post('/:id/submit', roleMiddleware(['Cliente']), submitApplication);
 
 // Both Abogados and Clientes can update, but logic in controller restricts Clientes
-router.patch('/:id', roleMiddleware(['Abogado', 'Cliente']), validateRequest(clientSchema.partial()), updateClient);
-router.put('/:id', roleMiddleware(['Abogado', 'Cliente']), validateRequest(clientSchema.partial()), updateClient);
+router.patch('/:id', roleMiddleware(['Abogado', 'Cliente']), validateRequest(clientSchema.partial()), auditProfileChanges, updateClient);
+router.put('/:id', roleMiddleware(['Abogado', 'Cliente']), validateRequest(clientSchema.partial()), auditProfileChanges, updateClient);
 
 // Mount nested routes at the end to avoid intercepting base routes
 router.use('/:clientId/notes', lawyerNoteRoutes);
