@@ -30,6 +30,20 @@ export class NoteSheetsService extends BaseRepository<LawyerNote> {
         return allNotes.filter(n => n.clientId === clientId);
     }
 
+    async updateNoteStatus(noteId: string, status: 'Pending' | 'Resolved', clientId: string): Promise<LawyerNote> {
+        const allNotes = await this.findAll();
+        const note = allNotes.find(n => n.id === noteId && n.clientId === clientId);
+        
+        if (!note) {
+            throw new Error('Note not found or you do not have permission to modify it');
+        }
+
+        await this.update(noteId, { status });
+        await this.updatePendingNotesCount(clientId);
+
+        return { ...note, status };
+    }
+
     private async updatePendingNotesCount(clientId: string): Promise<void> {
         const clientNotes = await this.getLawyerNotes(clientId);
         const pendingCount = clientNotes.filter(n => n.status === 'Pending').length;

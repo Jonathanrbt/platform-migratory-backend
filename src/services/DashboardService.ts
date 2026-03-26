@@ -64,36 +64,26 @@ export class DashboardService {
             };
         }).filter(Boolean).slice(0, 10);
 
-        // 3. Alertas (Clientes en "Requiere subsanación" con nuevos documentos)
-        const clientsNeedingCorrection = clients.filter(c => c.status === 'Requiere subsanación');
-        const alerts = [];
+        // 3. Alertas (Basadas en modelo Alert)
+        const pendingAlerts = await prisma.alert.findMany({
+            where: { status: 'PENDIENTE' },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+        });
 
-        // Definimos "recientemente" como documentos subidos en los últimos 7 días
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const alerts = pendingAlerts.map(alert => {
+            const client = clients.find(c => c.id === alert.clientId);
+            if (!client) return null;
 
-        for (const client of clientsNeedingCorrection) {
-            if (!client.id) continue;
-            
-            // Buscar documentos subidos recientemente para este cliente
-            const recentDocs = await prisma.document.findMany({
-                where: {
-                    userId: client.id,
-                    createdAt: { gte: oneWeekAgo }
-                },
-                orderBy: { createdAt: 'desc' },
-                take: 1
-            });
-
-            if (recentDocs.length > 0) {
-                alerts.push({
-                    clientId: client.id,
-                    name: `${client.firstName} ${client.lastName}`.trim(),
-                    message: `Nuevos documentos subidos`,
-                    date: recentDocs[0].createdAt
-                });
-            }
-        }
+            return {
+                id: alert.id,
+                clientId: alert.clientId,
+                name: `${client.firstName} ${client.lastName}`.trim(),
+                message: alert.message,
+                date: alert.createdAt,
+                type: alert.type
+            };
+        }).filter(Boolean);
 
         return {
             metrics,
