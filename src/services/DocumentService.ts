@@ -6,6 +6,8 @@ import { ValidationSheetsService } from './googleSheets/ValidationSheetsService'
 import prisma from '../config/prisma';
 import { AppError } from '../utils/AppError';
 import path from 'path';
+import { ClientService } from './clientService';
+import { emailService } from './EmailService';
 
 const FOLDER_MAPPING: Record<string, string> = {
     'PASAPORTE': '01_Identidad',
@@ -169,6 +171,9 @@ export class DocumentService {
         if (uploadError) {
             throw new AppError(`Documento validado correctamente pero hubo un problema al guardarlo en Drive: ${uploadError.message}. El administrador lo revisará.`, 207); // 207 Multi-Status or just a custom warning
         }
+
+        // Evaluar progreso tras subsanación si aplica
+        await this.checkCorrectionProgress(user.id);
 
         console.log(`[DocumentService] Upload process completed successfully.`);
         return doc;
@@ -350,6 +355,36 @@ export class DocumentService {
         }
 
         return statusDict;
+    }
+
+    private async checkCorrectionProgress(userId: string) {
+        try {
+            const clientService = new ClientService();
+            const client = await clientService.getClientById(userId);
+            if (client && client.status === 'Requiere subsanación') {
+                const progress = await clientService.calculateProgress(userId);
+                if (progress.totalProgress === 100) {
+                    await clientService.updateClient(userId, { status: 'En revisión por abogado' }, { role: 'System' });
+                    
+                    const lawyers = await prisma.user.findMany({ where: { role: 'Abogado' }, select: { email: true } });
+                    const lawyerEmails = lawyers.map(l => l.email);
+                    
+                    await emailService.sendCorrectionSubmittedEmail(lawyerEmails, `${client.firstName} ${client.lastName}`);
+                    
+                    await prisma.auditLog.create({
+                        data: {
+                            lawyerId: 'SYSTEM',
+                            clientId: userId,
+                            action: 'CORRECTION_SUBMITTED',
+                            details: 'El cliente ha subsanado sus documentos y vuelve a estar completo.'
+                        }
+                    });
+                    console.log(`[DocumentService] Status changed to 'En revisión por abogado' for user ${userId} and email sent.`);
+                }
+            }
+        } catch (error) {
+            console.error(`[DocumentService] Error checking correction progress for user ${userId}:`, error);
+        }
     }
 
     private async recordValidationToSheets(

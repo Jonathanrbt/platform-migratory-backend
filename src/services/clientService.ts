@@ -4,6 +4,7 @@ import { Client } from '../models/Client';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '../utils/AppError';
 import prisma from '../config/prisma';
+import { emailService } from './EmailService';
 
 export class ClientService {
     private clientSheetsService: ClientSheetsService;
@@ -185,6 +186,7 @@ export class ClientService {
 
     async updateClient(id: string, updates: Partial<Client>, user: any) {
         const currentClient = await this.getClientById(id);
+        let wasRequiresCorrection = false;
 
         // Business Logic: Role-based validation
         if (user.role === 'Cliente') {
@@ -196,6 +198,10 @@ export class ClientService {
             const allowedStatuses = ['Registro incompleto', 'Requiere subsanación', 'Rechazado'];
             if (!allowedStatuses.includes(currentClient.status || '')) {
                 throw new AppError(`You cannot edit your profile when status is ${currentClient.status}`, 403);
+            }
+
+            if (currentClient.status === 'Requiere subsanación') {
+                wasRequiresCorrection = true;
             }
 
             // SECURITY PATCH: Prevent clients from updating sensitive fields
@@ -225,6 +231,29 @@ export class ClientService {
         updates.lastUpdatedDate = new Date().toISOString();
 
         await this.clientSheetsService.update(id, updates);
+
+        if (wasRequiresCorrection && user.role === 'Cliente') {
+            const progress = await this.calculateProgress(id);
+            if (progress.totalProgress === 100) {
+                await this.clientSheetsService.update(id, { status: 'En revisión por abogado' });
+                updates.status = 'En revisión por abogado';
+                
+                const lawyers = await prisma.user.findMany({ where: { role: 'Abogado' }, select: { email: true } });
+                const lawyerEmails = lawyers.map(l => l.email);
+                
+                await emailService.sendCorrectionSubmittedEmail(lawyerEmails, `${currentClient.firstName} ${currentClient.lastName}`);
+                
+                await prisma.auditLog.create({
+                    data: {
+                        lawyerId: 'SYSTEM',
+                        clientId: id,
+                        action: 'CORRECTION_SUBMITTED',
+                        details: 'El cliente ha subsanado su registro y vuelve a estar completo.'
+                    }
+                });
+            }
+        }
+
         return { ...currentClient, ...updates };
     }
 
@@ -287,7 +316,33 @@ export class ClientService {
             throw new AppError(`No se puede enviar la solicitud. El progreso no está al 100% (Actual: ${progress.totalProgress}%)`, 400);
         }
 
+        const client = await this.getClientById(clientId);
         await this.clientSheetsService.update(clientId, { status: 'En revisión por abogado' });
+
+        // Enviar notificación a abogados
+        const lawyers = await prisma.user.findMany({ where: { role: 'Abogado' }, select: { email: true } });
+        const lawyerEmails = lawyers.map(l => l.email);
+        await emailService.sendApplicationSubmittedEmail(lawyerEmails, `${client.firstName} ${client.lastName}`);
+        
+        // Registrar en AuditLog
+        await prisma.auditLog.create({
+            data: {
+                lawyerId: 'SYSTEM',
+                clientId: clientId,
+                action: 'APPLICATION_SUBMITTED',
+                details: 'El cliente ha completado el envío de su formulario inicial y documentos.'
+            }
+        });
+
+        await prisma.alert.create({
+            data: {
+                clientId: clientId,
+                type: 'NUEVA_SOLICITUD',
+                message: 'Nueva Solicitud Completa',
+                status: 'PENDIENTE'
+            }
+        });
+
         return { status: 'success', message: 'Application submitted successfully' };
     }
 
