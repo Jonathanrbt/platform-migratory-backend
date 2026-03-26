@@ -34,6 +34,7 @@
     "@google-cloud/vision": "^5.3.4",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.19.2",
+    "@types/nodemailer": "^7.0.11",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -43,6 +44,7 @@
     "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
+    "nodemailer": "^8.0.4",
     "uuid": "^9.0.1",
     "zod": "^4.3.6"
   },

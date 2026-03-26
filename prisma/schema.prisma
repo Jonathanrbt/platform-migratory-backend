@@ -92,3 +92,25 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+enum AlertStatus {
+  PENDIENTE
+  REALIZADO
+}
+
+enum AlertType {
+  NUEVA_SOLICITUD
+  SUBSANACION
+}
+
+model Alert {
+  id        String      @id @default(uuid())
+  clientId  String
+  type      AlertType
+  message   String      @db.Text
+  status    AlertStatus @default(PENDIENTE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("alerts")
+}
