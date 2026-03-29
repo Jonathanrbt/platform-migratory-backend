@@ -1,21 +1,52 @@
 import { BaseRepository } from './BaseRepository';
+import { ClientSheetsService } from './ClientSheetsService';
 import { LawyerNote, lawyerNoteSchema } from '../../models/LawyerNote';
+import { v4 as uuidv4 } from 'uuid';
 
 export class NoteSheetsService extends BaseRepository<LawyerNote> {
+    private clientSheetsService: ClientSheetsService;
+
     constructor() {
-        super('Notas Abogado', lawyerNoteSchema, 'clientId'); // Assuming clientId can be used for search
+        super('NotasAbogado', lawyerNoteSchema, 'id');
+        this.clientSheetsService = new ClientSheetsService();
+    }
+
+    async createNote(noteData: LawyerNote): Promise<LawyerNote> {
+        const id = noteData.id || uuidv4();
+        const date = noteData.date || new Date().toISOString();
+        const newNote: LawyerNote = { ...noteData, id, date };
+
+        // Añadir registro en la hoja de NotasAbogado
+        await this.create(newNote);
+
+        // Actualizar contador en la hoja del Cliente
+        await this.updatePendingNotesCount(newNote.clientId);
+
+        return newNote;
     }
 
     async getLawyerNotes(clientId: string): Promise<LawyerNote[]> {
-        await this.ensureInitialized();
-        const headerName = this.propertyToHeader.get('clientId');
-        const colIndex = this.columnMap.get(headerName || 'id cliente');
+        const allNotes = await this.findAll();
+        return allNotes.filter(n => n.clientId === clientId);
+    }
 
-        if (colIndex === undefined) return [];
+    async updateNoteStatus(noteId: string, status: 'Pending' | 'Resolved', clientId: string): Promise<LawyerNote> {
+        const allNotes = await this.findAll();
+        const note = allNotes.find(n => n.id === noteId && n.clientId === clientId);
+        
+        if (!note) {
+            throw new Error('Note not found or you do not have permission to modify it');
+        }
 
-        const rows = await this.getValues('A2:Z');
-        return rows
-            .filter(r => r[colIndex] === clientId)
-            .map(row => this.mapRowToEntity(row));
+        await this.update(noteId, { status });
+        await this.updatePendingNotesCount(clientId);
+
+        return { ...note, status };
+    }
+
+    private async updatePendingNotesCount(clientId: string): Promise<void> {
+        const clientNotes = await this.getLawyerNotes(clientId);
+        const pendingCount = clientNotes.filter(n => n.status === 'Pending').length;
+        await this.clientSheetsService.update(clientId, { pendingNotesCount: pendingCount });
     }
 }

@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  Cliente
+  Abogado
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String?
+  role              Role     @default(Cliente)
+  firstName         String
+  lastName          String
+  googleId          String?
+  registrationDate  DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  documentNumber    String?  @unique
+  documentType      String?
+  familyId          String?
+  family            FamilyNucleus? @relation("FamilyMembers", fields: [familyId], references: [id])
+  adminOf           FamilyNucleus? @relation("FamilyAdmin")
+  documentsUploaded Boolean  @default(false)
+  driveFolderId     String?  // ID de la carpeta personal en Google Drive
+  documents         Document[]
+
+  @@map("users")
+}
+
+enum DocumentType {
+  PASAPORTE
+  ANTECEDENTES_PENALES
+  CERTIFICADO_EMPADRONAMIENTO
+  PRUEBA_RESIDENCIA
+  OTROS
+}
+
+enum ValidationStatus {
+  VERIFIED
+  MANUAL_REVIEW
+  REJECTED
+}
+
+model Document {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  type        DocumentType
+  driveFileId String           @unique
+  status      ValidationStatus
+  confidence  Float
+  issues      String?          @db.Text
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("documents")
+}
+
+model FamilyNucleus {
+  id            String   @id @default(uuid())
+  name          String
+  adminId       String   @unique
+  admin         User     @relation("FamilyAdmin", fields: [adminId], references: [id])
+  members       User[]   @relation("FamilyMembers")
+  driveFolderId String?  // ID de la carpeta en Google Drive
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("family_nuclei")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  lawyerId    String
+  clientId    String   // ID from Google Sheets
+  action      String   // e.g., "STATUS_CHANGE", "NOTE_ADDED"
+  details     String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+enum AlertStatus {
+  PENDIENTE
+  REALIZADO
+}
+
+enum AlertType {
+  NUEVA_SOLICITUD
+  SUBSANACION
+}
+
+model Alert {
+  id        String      @id @default(uuid())
+  clientId  String
+  type      AlertType
+  message   String      @db.Text
+  status    AlertStatus @default(PENDIENTE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@map("alerts")
+}

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const lawyerNoteSchema = z.object({
+    id: z.string().optional().describe('ID'),
     clientId: z.string().describe('ID Cliente'),
     lawyerName: z.string().describe('Abogado'),
     category: z.enum(['Revisión', 'Entrevista', 'Alerta', 'General']).describe('Categoría'),
@@ -13,6 +14,7 @@ export const lawyerNoteSchema = z.object({
 export type LawyerNote = z.infer<typeof lawyerNoteSchema>;
 
 export const LAWYER_NOTE_SHEET_HEADERS = [
+    'ID',
     'ID Cliente',
     'Abogado',
     'Categoría',

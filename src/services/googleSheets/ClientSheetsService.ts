@@ -1,5 +1,6 @@
 import { BaseRepository } from './BaseRepository';
 import { Client, clientSchema } from '../../models/Client';
+import { AppError } from '../../utils/AppError';
 
 export class ClientSheetsService extends BaseRepository<Client> {
     constructor() {
@@ -16,18 +17,25 @@ export class ClientSheetsService extends BaseRepository<Client> {
         let clients = await this.findAll();
 
         if (options.status) {
+            const statusList = options.status.split(',').map(s => s.trim().toLowerCase());
             clients = clients.filter(c => 
-                c.status?.toLowerCase() === options.status?.toLowerCase()
+                c.status && statusList.includes(c.status.toLowerCase())
             );
         }
 
         if (options.search) {
             const search = options.search.toLowerCase();
-            clients = clients.filter(c => 
-                Object.values(c).some(val => 
+            clients = clients.filter(c => {
+                const searchFields = [
+                    c.firstName,
+                    c.lastName,
+                    c.email,
+                    c.documentNumber
+                ];
+                return searchFields.some(val => 
                     val?.toString().toLowerCase().includes(search)
-                )
-            );
+                );
+            });
         }
 
         if (options.sort) {
@@ -52,6 +60,21 @@ export class ClientSheetsService extends BaseRepository<Client> {
         }
 
         return { clients, total };
+    }
+
+    async findByEmail(email: string): Promise<Client | null> {
+        await this.ensureInitialized();
+        const headerName = this.propertyToHeader.get('email');
+        const colIndex = this.columnMap.get(headerName || 'email');
+
+        if (colIndex === undefined) {
+            throw new AppError(`Email column not found`, 500);
+        }
+
+        const rows = await this.getValues('A2:AZ');
+        const row = rows.find(r => r[colIndex]?.toLowerCase() === email.toLowerCase());
+        
+        return row ? this.mapRowToEntity(row) : null;
     }
 
     // addClient, updateClient, deleteClient are now handled by BaseRepository!

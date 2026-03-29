@@ -20,38 +20,24 @@ export class VisionService {
     }
 
     /**
-     * Performs OCR on an image or PDF.
+     * Performs OCR on an image or PDF and detects language.
      * @param buffer The file content as a Buffer.
      */
-    async extractText(buffer: Buffer): Promise<string> {
+    async extractText(buffer: Buffer): Promise<{ text: string, language: string }> {
         try {
             const [result] = await this.client.textDetection(buffer);
             const detections = result.textAnnotations;
             
             if (!detections || detections.length === 0) {
-                return '';
+                return { text: '', language: 'unknown' };
             }
 
-            return detections[0].description || '';
+            const text = detections[0].description || '';
+            const language = result.fullTextAnnotation?.pages?.[0]?.property?.detectedLanguages?.[0]?.languageCode || 'unknown';
+
+            return { text, language };
         } catch (error: any) {
             throw new AppError(`Error in OCR: ${error.message}`, 500);
-        }
-    }
-
-    /**
-     * Detects the language of the extracted text.
-     */
-    async detectLanguage(text: string): Promise<string> {
-        // Note: Google Vision provides language hints in textDetection,
-        // but for better accuracy, one might use Google Translate API (Detection).
-        // For now, we rely on Vision's results or basic heuristics.
-        try {
-            const [result] = await this.client.textDetection({
-                image: { content: Buffer.from(text).toString('base64') }
-            });
-            return result.fullTextAnnotation?.pages?.[0]?.property?.detectedLanguages?.[0]?.languageCode || 'unknown';
-        } catch {
-            return 'unknown';
         }
     }
 }
