@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node dist/index.js",
+    "gcp-build": "npm run build",
+    "build": "npx prisma generate && tsc",
+    "start": "npx prisma db push --accept-data-loss && node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "tsc",
     "test": "jest",
     "lint": "eslint src/**/*.ts tests/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",

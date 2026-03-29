@@ -41,8 +41,8 @@ export const googleAuthUrl = asyncHandler(async (req: Request, res: Response) =>
     // Guardar el state en una cookie httpOnly, segura y con tiempo de vida corto (ej. 10 min)
     res.cookie('oauth_state', result.state, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 10 * 60 * 1000 // 10 minutos
     });
     console.info('[googleAuthUrl] Cookie oauth_state has been set on response.');

@@ -165,7 +165,7 @@ To manage the system, validate documents, and assist clients, you need an accoun
 Use the dedicated script to generate this profile from the terminal:
 
 \`\`\`bash
-npx ts-node create_lawyer.ts
+npx ts-node src/scripts/create_lawyer.ts
 \`\`\`
 
 The script will guide you through the process or generate the necessary credentials in the database so you can log in immediately to the administrative dashboard.
@@ -191,35 +191,6 @@ npm start
 
 ---
 
-## 🐳 Deployment (Docker & GCP)
-
-This application is container-ready and optimized for deployment on Google Cloud Platform (GCP), specifically Google Cloud Run or GKE.
-
-Build the Docker Image:
-
-```bash
-docker build -t platform-migratory-api .
-```
-
-Run Locally via Docker:
-
-```bash
-docker run -p 3000:3000 --env-file .env platform-migratory-api
-```
-
-Deploy to Google Cloud Run:
-Ensure you have the gcloud CLI installed and authenticated.
-
-```bash
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/platform-migratory-api
-gcloud run deploy platform-migratory-api \
-  --image gcr.io/YOUR_PROJECT_ID/platform-migratory-api \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
-```
-
----
 
 ## 🤝 Contributing
 

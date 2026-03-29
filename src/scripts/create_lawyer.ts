@@ -1,5 +1,5 @@
-import { AuthService } from './src/services/authService';
-import prisma from './src/config/prisma';
+import { AuthService } from '../services/authService';
+import prisma from '../config/prisma';
 
 async function createLawyer() {
     const authService = new AuthService();
@@ -14,7 +14,7 @@ async function createLawyer() {
             lastName: 'Sistema',
             role: 'Abogado',
             documentType: 'DNI',
-            documentNumber: '12345678'
+            documentNumber: '123456789'
         });
         
         console.log('Usuario creado exitosamente:');
