@@ -58,10 +58,10 @@ The platform relies on a robust layer-based architecture (Routes -> Controllers 
 
 ```mermaid
 graph LR
-    A[Client Uploads Doc <br/>(Multer)] --> B[AI Processing <br/>(Vision/Gemini extracts data)]
-    B --> C[Cloud Storage <br/>(Upload to Google Drive)]
-    C --> D[Data Sync <br/>(Update Google Sheets)]
-    D --> E[Persistence <br/>(Save to DB via Prisma)]
+    A["Client Uploads Doc <br/>(Multer)"] --> B["AI Processing <br/>(Vision/Gemini extracts data)"]
+    B --> C["Cloud Storage <br/>(Upload to Google Drive)"]
+    C --> D["Data Sync <br/>(Update Google Sheets)"]
+    D --> E["Persistence <br/>(Save to DB via Prisma)"]
 ```
 
 Upload: A client uploads an identity or legal document.
