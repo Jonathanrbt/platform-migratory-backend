@@ -3,6 +3,7 @@ import { ClientService } from '../services/clientService';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/AppError';
 import prisma from '../config/prisma';
+import { emailService } from '../services/EmailService';
 
 const clientService = new ClientService();
 
@@ -254,6 +255,16 @@ export const reviewClient = asyncHandler(async (req: Request, res: Response) => 
                 details: `Status changed to ${status}${note ? '. Note added.' : ''}`
             }
         });
+    }
+
+    // Send status update email to the client
+    if (client.email) {
+        await emailService.sendStatusUpdateEmail(
+            client.email,
+            client.firstName || 'Cliente',
+            status as string,
+            note
+        );
     }
 
     res.status(200).json({
