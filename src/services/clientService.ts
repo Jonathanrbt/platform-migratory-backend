@@ -40,6 +40,7 @@ export class ClientService {
             return {
                 id: c.id,
                 Nombre: `${c.firstName} ${c.lastName}`.trim(),
+                TipoDocumento: c.documentType || 'N/A',
                 Documento: c.documentNumber || 'N/A',
                 Correo: c.email,
                 Tipo: applicantType,
@@ -230,6 +231,23 @@ export class ClientService {
 
         updates.lastUpdatedDate = new Date().toISOString();
 
+        // Sincronizar Tipo de Documento y Número de Documento con Prisma
+        if (updates.documentType || updates.documentNumber) {
+            const dataToUpdate: any = {};
+            if (updates.documentType) dataToUpdate.documentType = updates.documentType;
+            if (updates.documentNumber) dataToUpdate.documentNumber = updates.documentNumber;
+            
+            try {
+                await prisma.user.update({
+                    where: { id: id },
+                    data: dataToUpdate
+                });
+            } catch (error) {
+                console.error(`[ClientService] Error updating document info in Prisma for user ${id}:`, error);
+                // Non-blocking error, we still want to update Sheets
+            }
+        }
+
         await this.clientSheetsService.update(id, updates);
 
         if (wasRequiresCorrection && user.role === 'Cliente') {
@@ -265,7 +283,8 @@ export class ClientService {
             'firstName', 'lastName', 'fechaNacimiento', 'nacionalidad', 
             'countryOfBirth', 'sexo', 'estadoCivil', 'email', 'phone', 
             'direccion', 'province', 'municipality', 'entryDate', 'entryWay', 
-            'stayDuration', 'isRegisteredInTownHall', 'hasCriminalRecord'
+            'stayDuration', 'isRegisteredInTownHall', 'hasCriminalRecord',
+            'documentType', 'documentNumber'
         ];
         
         let filledFields = 0;
