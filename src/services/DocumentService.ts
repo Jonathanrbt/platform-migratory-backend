@@ -55,7 +55,11 @@ export class DocumentService {
         
         const looksAltered = checks.looksAltered || false;
         const isReadable = checks.isReadable || false;
-        const isExpired = checks.isExpired || false;
+        let isExpired = checks.isExpired || false;
+
+        if (docType === 'PRUEBA_RESIDENCIA' || docType === 'OTROS') {
+            isExpired = false;
+        }
 
         let status: 'GREEN' | 'YELLOW' | 'RED' = 'RED';
         let resultLabel: 'Pass' | 'Fail' | 'Warning' = 'Fail';
@@ -209,7 +213,11 @@ export class DocumentService {
         const checks = analysis.validationChecks || {};
         const looksAltered = checks.looksAltered || false;
         const isReadable = checks.isReadable || false;
-        const isExpired = checks.isExpired || false;
+        let isExpired = checks.isExpired || false;
+
+        if (docType === 'PRUEBA_RESIDENCIA' || docType === 'OTROS') {
+            isExpired = false;
+        }
 
         let status: 'GREEN' | 'YELLOW' | 'RED' = 'RED';
         let resultLabel: 'Pass' | 'Fail' | 'Warning' = 'Fail';
