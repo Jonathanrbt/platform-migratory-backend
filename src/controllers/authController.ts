@@ -53,7 +53,13 @@ export const googleAuthUrl = asyncHandler(async (req: Request, res: Response) =>
 
 export const googleCallback = asyncHandler(async (req: Request, res: Response) => {
     console.info('[googleCallback] Callback received from Google');
-    const { code, state } = req.query;
+    const { code, state, error } = req.query;
+
+    if (error) {
+        console.warn(`[googleCallback] Google Auth Error: ${error}`);
+        return res.redirect(`${process.env.FRONTEND_URL}/auth/login?error=Se canceló el inicio de sesión con Google`);
+    }
+
     const cookieState = req.cookies.oauth_state;
 
     console.info(`[googleCallback] Query Code exists: ${!!code}, Query State: ${state}, Cookie State: ${cookieState}`);
