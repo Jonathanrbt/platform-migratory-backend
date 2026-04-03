@@ -86,6 +86,7 @@ export class GeminiService {
                     - REQUIERE Apostilla de la Haya obligatoriamente.
                     - REQUIERE Traducción Jurada si no está en español.
                     - Debe ser del país de origen del solicitante.
+                    - EXCEPCIÓN MENORES DE EDAD: Si el documento adjunto es un 'Certificado de Nacimiento Apostillado', debes considerarlo como un documento VÁLIDO para este requisito. Esto es una excepción específica para menores de edad. No lo rechaces por no ser un documento de antecedentes penales tradicional.
                     - ERROR si: No tiene el sello de apostilla visible.`;
                     break;
                 case 'CERTIFICADO_EMPADRONAMIENTO':
