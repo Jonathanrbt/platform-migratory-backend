@@ -41,16 +41,14 @@ export const googleAuthUrl = asyncHandler(async (req: Request, res: Response) =>
     // Guardar el state en una cookie httpOnly, segura y con tiempo de vida corto (ej. 10 min)
     res.cookie('oauth_state', result.state, {
         httpOnly: true,
-        secure: true,
-        sameSite: 'none',
+        secure: true, // Requerido en HTTPS
+        sameSite: 'lax', // 'lax' evita que navegadores móviles (Safari/ITP) bloqueen la cookie en el redireccionamiento
         maxAge: 10 * 60 * 1000 // 10 minutos
     });
     console.info('[googleAuthUrl] Cookie oauth_state has been set on response.');
 
-    res.status(200).json({
-        status: 'success',
-        data: { url: result.url }
-    });
+    // Redirigir directamente a Google en lugar de devolver JSON para que el navegador trate la petición como navegación de primer nivel
+    res.redirect(result.url);
 });
 
 export const googleCallback = asyncHandler(async (req: Request, res: Response) => {
