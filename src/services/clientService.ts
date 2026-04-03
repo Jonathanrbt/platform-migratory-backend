@@ -86,10 +86,8 @@ export class ClientService {
         // 2. Regla legal: Fecha de entrada (31/12/2025)
         const limitDate = new Date('2025-12-31');
         const entryDate = new Date(clientData.entryDate);
-        let isRejectedByLegalRule = false;
         if (entryDate > limitDate) {
-            status = 'Rechazado';
-            isRejectedByLegalRule = true;
+            throw new AppError('No cumples con el requisito legal de permanencia mínima (entrada antes del 31/12/2025). Tu solicitud no puede ser procesada.', 400);
         }
 
         // 3. Notas automáticas para antecedentes
@@ -119,13 +117,8 @@ export class ClientService {
             driveFolderId: existingDriveFolderId // Ensure it's carried over
         };
 
-        // 4. Guardar en Google Sheets (Incluso si es rechazado por regla legal, para trazabilidad)
+        // 4. Guardar en Google Sheets
         await this.clientSheetsService.create(newClient);
-
-        if (isRejectedByLegalRule) {
-            // Informamos al usuario pero el registro ya queda guardado
-            throw new AppError('Su solicitud ha sido registrada pero no cumple con el requisito legal de permanencia mínima (entrada antes del 31/12/2025). Un asesor podría contactarle para más detalles.', 400);
-        }
 
         // --- Drive and DB Sync ---
         let finalFolderId: string | undefined = existingDriveFolderId;
