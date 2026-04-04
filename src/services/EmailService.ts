@@ -1,159 +1,189 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
+import { render } from '@react-email/render';
+import React from 'react';
+import VerifyEmailTemplate from '../emails/VerifyEmailTemplate';
+import ResetPasswordTemplate from '../emails/ResetPasswordTemplate';
+import LawyerNotificationTemplate from '../emails/LawyerNotificationTemplate';
+import StatusUpdateTemplate from '../emails/StatusUpdateTemplate';
 
 class EmailService {
-    private transporter: nodemailer.Transporter;
+    private resend: Resend;
 
     constructor() {
-        this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: Number(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
-            family: 4, // force IPv4 to fix ENETUNREACH IPv6 issues
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-        } as any);
+        this.resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
     }
 
-    private async sendMail(to: string | string[], subject: string, html: string) {
+    private getFromEmail(): string {
+        return process.env.SMTP_FROM || 'Plataforma Migratoria <notificaciones@jonathanrbt.lat>';
+    }
+
+    async sendVerificationEmail(email: string, code: string) {
+        if (!process.env.RESEND_API_KEY) {
+            console.warn('[EmailService] RESEND_API_KEY no configurado. Código generado:', code);
+            return;
+        }
+
         try {
-            if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-                console.warn('[EmailService] SMTP credentials not configured. Skipping email sending.');
-                return;
-            }
-
-            const mailOptions = {
-                from: process.env.SMTP_FROM || '"Sistema Migratorio" <no-reply@migratorio.com>',
-                to: Array.isArray(to) ? to.join(',') : to,
-                subject,
+            const html = await render(React.createElement(VerifyEmailTemplate, { validationCode: code }));
+            const { data, error } = await this.resend.emails.send({
+                from: this.getFromEmail(),
+                to: email,
+                subject: 'Verifica tu cuenta - Sistema Migratorio',
                 html,
-            };
+            });
 
-            const info = await this.transporter.sendMail(mailOptions);
-            console.log(`[EmailService] Message sent: ${info.messageId}`);
+            if (error) {
+                console.error('[EmailService] Error enviando correo de verificación:', error);
+            } else {
+                console.log(`[EmailService] Correo de verificación enviado a ${email}:`, data?.id);
+            }
         } catch (error) {
-            console.error('[EmailService] Error sending email:', error);
-            // Non-blocking: we don't throw the error
+            console.error('[EmailService] Exception enviando correo:', error);
         }
     }
 
-    private generateLawyerEmailTemplate(title: string, clientName: string, color: string, icon: string, message: string, actionUrl: string) {
-        return `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                <div style="background-color: ${color}; color: white; padding: 20px; text-align: center;">
-                    <h2 style="margin: 0; font-size: 24px;">${icon} Panel del Abogado</h2>
-                </div>
-                <div style="padding: 30px 20px; background-color: #ffffff; color: #374151;">
-                    <p style="font-size: 16px; margin-top: 0;">Estimado Equipo Legal,</p>
-                    <p style="font-size: 16px;">Se ha registrado una nueva actividad en el sistema para el cliente <strong>${clientName}</strong>:</p>
-                    <div style="text-align: center; margin: 25px 0;">
-                        <span style="display: inline-block; background-color: ${color}20; color: ${color}; padding: 8px 16px; border-radius: 9999px; font-weight: bold; font-size: 18px; border: 1px solid ${color};">
-                            ${title}
-                        </span>
-                    </div>
-                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; border-left: 4px solid ${color}; margin-bottom: 25px;">
-                        <p style="margin: 0; font-size: 15px;">${message}</p>
-                    </div>
-                    <div style="text-align: center; margin-top: 30px;">
-                        <a href="${actionUrl}" style="display: inline-block; background-color: #111827; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Ir al Panel</a>
-                    </div>
-                </div>
-                <div style="background-color: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb;">
-                    <p style="margin: 0;">Este es un mensaje automático del Sistema Migratorio, por favor no responda a este correo.</p>
-                </div>
-            </div>
-        `;
+    async sendPasswordResetEmail(email: string, code: string) {
+        if (!process.env.RESEND_API_KEY) {
+            console.warn('[EmailService] RESEND_API_KEY no configurado. Código generado:', code);
+            return;
+        }
+
+        try {
+            const html = await render(React.createElement(ResetPasswordTemplate, { validationCode: code }));
+            const { data, error } = await this.resend.emails.send({
+                from: this.getFromEmail(),
+                to: email,
+                subject: 'Recuperación de contraseña - Sistema Migratorio',
+                html,
+            });
+
+            if (error) {
+                console.error('[EmailService] Error enviando correo de recuperación:', error);
+            } else {
+                console.log(`[EmailService] Correo de recuperación enviado a ${email}:`, data?.id);
+            }
+        } catch (error) {
+            console.error('[EmailService] Exception enviando correo:', error);
+        }
     }
 
     async sendApplicationSubmittedEmail(lawyerEmails: string[], clientName: string) {
         if (!lawyerEmails || lawyerEmails.length === 0) return;
+        if (!process.env.RESEND_API_KEY) {
+            console.warn('[EmailService] RESEND_API_KEY no configurado.');
+            return;
+        }
+
         const subject = `Nueva Solicitud Recibida - ${clientName}`;
         const actionUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const message = `El cliente ha completado el envío de su formulario inicial y documentos. La solicitud ya está lista para su revisión.`;
         
-        const html = this.generateLawyerEmailTemplate(
-            'Nueva Solicitud', 
-            clientName, 
-            '#8b5cf6', // Violeta para nuevas solicitudes
-            '📄', 
-            message, 
-            actionUrl
-        );
-        await this.sendMail(lawyerEmails, subject, html);
+        try {
+            const html = await render(React.createElement(LawyerNotificationTemplate, {
+                title: 'Nueva Solicitud',
+                clientName,
+                color: '#18181B',
+                iconType: 'document',
+                message,
+                actionUrl
+            }));
+
+            const { data, error } = await this.resend.emails.send({
+                from: this.getFromEmail(),
+                to: lawyerEmails,
+                subject,
+                html,
+            });
+
+            if (error) console.error('[EmailService] Error:', error);
+        } catch (error) {
+            console.error('[EmailService] Exception:', error);
+        }
     }
 
     async sendCorrectionSubmittedEmail(lawyerEmails: string[], clientName: string) {
         if (!lawyerEmails || lawyerEmails.length === 0) return;
+        if (!process.env.RESEND_API_KEY) {
+            console.warn('[EmailService] RESEND_API_KEY no configurado.');
+            return;
+        }
+
         const subject = `Subsanación Recibida - ${clientName}`;
         const actionUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const message = `El cliente ha enviado sus correcciones o documentos adicionales y vuelve a estar completo. Por favor revise los cambios.`;
         
-        const html = this.generateLawyerEmailTemplate(
-            'Subsanación Recibida', 
-            clientName, 
-            '#0ea5e9', // Azul claro para subsanaciones
-            '🔄', 
-            message, 
-            actionUrl
-        );
-        await this.sendMail(lawyerEmails, subject, html);
-    }
+        try {
+            const html = await render(React.createElement(LawyerNotificationTemplate, {
+                title: 'Subsanación Recibida',
+                clientName,
+                color: '#27272A',
+                iconType: 'update',
+                message,
+                actionUrl
+            }));
 
-    private generateStatusEmailTemplate(clientName: string, statusText: string, color: string, icon: string, customMessage: string, actionUrl: string) {
-        return `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-                <div style="background-color: ${color}; color: white; padding: 20px; text-align: center;">
-                    <h2 style="margin: 0; font-size: 24px;">${icon} Sistema Migratorio</h2>
-                </div>
-                <div style="padding: 30px 20px; background-color: #ffffff; color: #374151;">
-                    <p style="font-size: 16px; margin-top: 0;">Hola <strong>${clientName}</strong>,</p>
-                    <p style="font-size: 16px;">El estado de su expediente ha sido actualizado a:</p>
-                    <div style="text-align: center; margin: 25px 0;">
-                        <span style="display: inline-block; background-color: ${color}20; color: ${color}; padding: 8px 16px; border-radius: 9999px; font-weight: bold; font-size: 18px; border: 1px solid ${color};">
-                            ${statusText}
-                        </span>
-                    </div>
-                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; border-left: 4px solid ${color}; margin-bottom: 25px;">
-                        <p style="margin: 0; font-size: 15px; white-space: pre-wrap;">${customMessage}</p>
-                    </div>
-                    <div style="text-align: center; margin-top: 30px;">
-                        <a href="${actionUrl}" style="display: inline-block; background-color: #111827; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Ver mi expediente</a>
-                    </div>
-                </div>
-                <div style="background-color: #f9fafb; padding: 15px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb;">
-                    <p style="margin: 0;">Este es un mensaje automático del Sistema Migratorio, por favor no responda a este correo.</p>
-                </div>
-            </div>
-        `;
+            const { data, error } = await this.resend.emails.send({
+                from: this.getFromEmail(),
+                to: lawyerEmails,
+                subject,
+                html,
+            });
+
+            if (error) console.error('[EmailService] Error:', error);
+        } catch (error) {
+            console.error('[EmailService] Exception:', error);
+        }
     }
 
     async sendStatusUpdateEmail(clientEmail: string, clientName: string, status: string, note?: string) {
         if (!clientEmail) return;
+        if (!process.env.RESEND_API_KEY) {
+            console.warn('[EmailService] RESEND_API_KEY no configurado.');
+            return;
+        }
 
-        let color = '#3b82f6'; // Azul por defecto (En proceso)
-        let icon = '⏳';
+        let color = '#3F3F46';
+        let iconType: 'success' | 'error' | 'warning' | 'pending' | 'document' = 'pending';
         let customMessage = 'Su expediente está siendo revisado por nuestro equipo.';
         
         if (status === 'Aprobado') {
-            color = '#10b981'; // Verde
-            icon = '✅';
+            color = '#3F6250';
+            iconType = 'success';
             customMessage = 'Su expediente ha sido aprobado satisfactoriamente.';
         } else if (status === 'Rechazado') {
-            color = '#ef4444'; // Rojo
-            icon = '❌';
+            color = '#7F1D1D';
+            iconType = 'error';
             customMessage = 'Su expediente ha sido rechazado. Por favor, contáctenos para más detalles.';
         } else if (status === 'Requiere subsanación') {
-            color = '#f59e0b'; // Naranja
-            icon = '⚠️';
+            color = '#9A3412';
+            iconType = 'warning';
             customMessage = note ? `<strong>Mensaje del abogado:</strong><br/><br/>${note}<br/><br/>Por favor, inicie sesión para corregir su solicitud.` : 'Por favor, inicie sesión para corregir su solicitud.';
         }
 
         const actionUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const subject = `Actualización de Estado - ${status}`;
-        const html = this.generateStatusEmailTemplate(clientName, status, color, icon, customMessage, actionUrl);
 
-        await this.sendMail(clientEmail, subject, html);
+        try {
+            const html = await render(React.createElement(StatusUpdateTemplate, {
+                clientName,
+                statusText: status,
+                color,
+                iconType,
+                customMessage,
+                actionUrl
+            }));
+
+            const { data, error } = await this.resend.emails.send({
+                from: this.getFromEmail(),
+                to: clientEmail,
+                subject,
+                html,
+            });
+
+            if (error) console.error('[EmailService] Error:', error);
+        } catch (error) {
+            console.error('[EmailService] Exception:', error);
+        }
     }
 }
 

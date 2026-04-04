@@ -22,6 +22,50 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     });
 });
 
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+    const { email, code } = req.body;
+    if (!email || !code) throw new AppError('Email and code are required', 400);
+
+    const result = await authService.verifyEmail(email, code);
+    res.status(200).json({
+        status: 'success',
+        data: result
+    });
+});
+
+export const resendVerification = asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body;
+    if (!email) throw new AppError('Email is required', 400);
+
+    await authService.resendVerification(email);
+    res.status(200).json({
+        status: 'success',
+        message: 'Verification email sent'
+    });
+});
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body;
+    if (!email) throw new AppError('Email is required', 400);
+
+    await authService.forgotPassword(email);
+    res.status(200).json({
+        status: 'success',
+        message: 'If the email exists, a recovery code has been sent.'
+    });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) throw new AppError('Email, code, and newPassword are required', 400);
+
+    await authService.resetPassword(email, code, newPassword);
+    res.status(200).json({
+        status: 'success',
+        message: 'Password reset successful'
+    });
+});
+
 export const googleLogin = asyncHandler(async (req: Request, res: Response) => {
     const { idToken } = req.body;
     const result = await authService.googleLogin(idToken);
@@ -95,7 +139,8 @@ export const googleCallback = asyncHandler(async (req: Request, res: Response) =
         console.info(`[googleCallback] Successful login. Profile INCOMPLETE. Redirecting to frontend to complete profile...`);
         res.redirect(`${frontendUrl}/login/success?token=${result.token}&profileComplete=false`);
     }
-    });
+});
+
 export const completeProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
     const { documentType, documentNumber } = req.body;

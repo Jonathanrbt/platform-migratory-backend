@@ -5,14 +5,15 @@ import { OAuth2Client } from 'google-auth-library';
 import { UserService } from './UserService';
 import { User } from '../models/User';
 import { AppError } from '../utils/AppError';
+import { emailService } from './EmailService';
+import prisma from '../config/prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'c3c7962c344bd330bdef829c2674adee50da48072041faef7abc347e5f3f937b';
+const JWT_SECRET = process.env.JWT_SECRET as string;
 const JWT_EXPIRES_IN = '24h';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
 
-// Se necesita el clientSecret y el redirectUri para el server-side flow
 const googleClient = new OAuth2Client(
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
@@ -21,27 +22,25 @@ const googleClient = new OAuth2Client(
 const userService = new UserService();
 
 export class AuthService {
-    async register(userData: any): Promise<{ user: User; token: string }> {
+    // Generador de OTP de 6 dígitos
+    private generateOTP(): string {
+        return Math.floor(100000 + Math.random() * 900000).toString();
+    }
+
+    async register(userData: any): Promise<{ user: User; requiresVerification: boolean; token?: string }> {
         const { email, password, firstName, lastName, role, ...otherData } = userData;
-        
-        console.log(`[AuthService] Intentando registrar usuario: ${email}`);
-        console.log(`[AuthService] Password recibida: ${password ? 'SI (largo: ' + password.length + ')' : 'NO'}`);
         
         const existingUser = await userService.getUserByEmail(email);
         if (existingUser) {
-            console.warn(`[AuthService] Registro fallido: El email ${email} ya está en uso.`);
             throw new AppError('Email already in use', 400);
         }
 
         let passwordHash: string | undefined;
         if (password) {
             passwordHash = await bcrypt.hash(password, 12);
-            console.log(`[AuthService] Hash generado exitosamente`);
-        } else {
-            console.warn(`[AuthService] No se proporcionó contraseña para el usuario: ${email}`);
         }
 
-        const newUser: User = {
+        const newUser: any = {
             ...otherData,
             email,
             firstName,
@@ -49,32 +48,162 @@ export class AuthService {
             role: role || 'Cliente',
             passwordHash,
             id: userData.id || require('uuid').v4(),
-            registrationDate: new Date().toISOString()
+            registrationDate: new Date().toISOString(),
+            isEmailVerified: false
         };
 
-        console.log(`[AuthService] Guardando usuario con passwordHash: ${newUser.passwordHash ? 'PRESENTE' : 'AUSENTE'}`);
         const createdUser = await userService.create(newUser);
         
-        console.log(`[AuthService] Usuario creado exitosamente con ID: ${createdUser.id}`);
-        const token = this.generateToken(createdUser);
+        // Generar OTP y guardar
+        const otp = this.generateOTP();
+        await prisma.verificationToken.create({
+            data: {
+                email,
+                token: otp,
+                type: 'VERIFY_EMAIL',
+                expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 mins
+            }
+        });
 
-        return { user: createdUser, token };
+        // Enviar email
+        await emailService.sendVerificationEmail(email, otp);
+
+        return { user: createdUser, requiresVerification: true };
     }
 
-    async login(email: string, password: string): Promise<{ user: User; token: string }> {
-        console.log(`[AuthService] Intento de login para: ${email}`);
+    async login(email: string, password: string): Promise<{ user: User; token?: string; requiresVerification?: boolean }> {
         const user = await userService.getUserByEmail(email);
         
         if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
-            console.warn(`[AuthService] Login fallido para: ${email}`);
             throw new AppError('Incorrect email or password', 401);
         }
 
-        console.log(`[AuthService] Login exitoso para: ${email} (Rol: ${user.role})`);
+        if (!(user as any).isEmailVerified) {
+            // Generar nuevo OTP y reenviar
+            await prisma.verificationToken.deleteMany({
+                where: { email: user.email, type: 'VERIFY_EMAIL' }
+            });
+            const otp = this.generateOTP();
+            await prisma.verificationToken.create({
+                data: {
+                    email: user.email,
+                    token: otp,
+                    type: 'VERIFY_EMAIL',
+                    expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+                }
+            });
+            await emailService.sendVerificationEmail(user.email, otp);
+            
+            throw new AppError('Email no verificado. Se ha enviado un nuevo código a su correo.', 403);
+        }
+
         const token = this.generateToken(user);
         return { user, token };
     }
 
+    async verifyEmail(email: string, code: string): Promise<{ user: User; token: string }> {
+        const tokenRecord = await prisma.verificationToken.findFirst({
+            where: {
+                email,
+                token: code,
+                type: 'VERIFY_EMAIL'
+            }
+        });
+
+        if (!tokenRecord) {
+            throw new AppError('Código inválido o incorrecto', 400);
+        }
+
+        if (tokenRecord.expiresAt < new Date()) {
+            throw new AppError('El código ha expirado', 400);
+        }
+
+        // Actualizar usuario
+        const updatedUser = await prisma.user.update({
+            where: { email },
+            data: { isEmailVerified: true }
+        });
+
+        // Borrar tokens
+        await prisma.verificationToken.deleteMany({
+            where: { email, type: 'VERIFY_EMAIL' }
+        });
+
+        const token = this.generateToken(updatedUser as any);
+        return { user: updatedUser as any, token };
+    }
+
+    async resendVerification(email: string): Promise<void> {
+        const user = await userService.getUserByEmail(email);
+        if (!user) throw new AppError('Usuario no encontrado', 404);
+        if (user.isEmailVerified) throw new AppError('El correo ya está verificado', 400);
+
+        await prisma.verificationToken.deleteMany({
+            where: { email, type: 'VERIFY_EMAIL' }
+        });
+
+        const otp = this.generateOTP();
+        await prisma.verificationToken.create({
+            data: {
+                email,
+                token: otp,
+                type: 'VERIFY_EMAIL',
+                expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            }
+        });
+
+        await emailService.sendVerificationEmail(email, otp);
+    }
+
+    async forgotPassword(email: string): Promise<void> {
+        const user = await userService.getUserByEmail(email);
+        if (!user) {
+            // Por seguridad, no decimos si existe o no
+            return;
+        }
+
+        await prisma.verificationToken.deleteMany({
+            where: { email, type: 'RESET_PASSWORD' }
+        });
+
+        const otp = this.generateOTP();
+        await prisma.verificationToken.create({
+            data: {
+                email,
+                token: otp,
+                type: 'RESET_PASSWORD',
+                expiresAt: new Date(Date.now() + 15 * 60 * 1000)
+            }
+        });
+
+        await emailService.sendPasswordResetEmail(email, otp);
+    }
+
+    async resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+        const tokenRecord = await prisma.verificationToken.findFirst({
+            where: {
+                email,
+                token: code,
+                type: 'RESET_PASSWORD'
+            }
+        });
+
+        if (!tokenRecord || tokenRecord.expiresAt < new Date()) {
+            throw new AppError('Código inválido o expirado', 400);
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 12);
+        await prisma.user.update({
+            where: { email },
+            data: { passwordHash }
+        });
+
+        await prisma.verificationToken.deleteMany({
+            where: { email, type: 'RESET_PASSWORD' }
+        });
+    }
+
+    // --- MÉTODOS DE GOOGLE INTACTOS ---
     async googleLogin(idToken: string): Promise<{ user: User; token: string }> {
         try {
             const ticket = await googleClient.verifyIdToken({
@@ -90,8 +219,7 @@ export class AuthService {
             let user = await userService.getUserByEmail(payload.email);
 
             if (!user) {
-                // Auto-register Google users
-                const newUser: User = {
+                const newUser: any = {
                     email: payload.email,
                     firstName: payload.given_name || 'Google',
                     lastName: payload.family_name || 'User',
@@ -100,9 +228,16 @@ export class AuthService {
                     documentType: undefined,
                     id: require('uuid').v4(),
                     registrationDate: new Date().toISOString(),
-                    documentsUploaded: false
+                    documentsUploaded: false,
+                    isEmailVerified: true // Al ser de Google, ya está verificado
                 };
                 user = await userService.create(newUser);
+            } else if (!(user as any).isEmailVerified) {
+                // Si el usuario existía pero no estaba verificado, al logearse con Google lo verificamos
+                user = await prisma.user.update({
+                    where: { email: user.email },
+                    data: { isEmailVerified: true }
+                }) as any;
             }
 
             if (!user) throw new AppError('Error with Google login', 500);
@@ -115,18 +250,15 @@ export class AuthService {
     }
 
     generateGoogleAuthUrl(): { url: string; state: string } {
-        // Genera un state criptográficamente seguro
         const state = crypto.randomBytes(32).toString('hex');
-
-        // Genera la URL de autorización
         const url = googleClient.generateAuthUrl({
-            access_type: 'offline', // Para obtener refresh token si es necesario después
+            access_type: 'offline',
             scope: [
                 'https://www.googleapis.com/auth/userinfo.profile',
                 'https://www.googleapis.com/auth/userinfo.email',
             ],
             state: state,
-            prompt: 'consent' // Fuerza a que vuelva a pedir permisos (opcional, útil para obtener refresh token siempre)
+            prompt: 'consent'
         });
 
         return { url, state };
@@ -134,21 +266,13 @@ export class AuthService {
 
     async googleCallbackLogin(code: string): Promise<{ user: User; token: string }> {
         try {
-            console.info('[AuthService.googleCallbackLogin] Starting token exchange with Google...');
-            // Intercambia el código por tokens
             const { tokens } = await googleClient.getToken(code);
-            console.info('[AuthService.googleCallbackLogin] Tokens received successfully');
-            
-            // Configura los tokens en el cliente para poder hacer peticiones (ej. obtener info del usuario)
             googleClient.setCredentials(tokens);
 
-            // Obtiene la información del usuario usando el idToken provisto por Google
             if (!tokens.id_token) {
-                 console.error('[AuthService.googleCallbackLogin] Error: No id_token received');
-                 throw new AppError('No id_token received from Google', 400);
+                throw new AppError('No id_token received from Google', 400);
             }
 
-            console.info('[AuthService.googleCallbackLogin] Verifying Google idToken...');
             const ticket = await googleClient.verifyIdToken({
                 idToken: tokens.id_token,
                 audience: GOOGLE_CLIENT_ID,
@@ -157,19 +281,13 @@ export class AuthService {
             const payload = ticket.getPayload();
             
             if (!payload || !payload.email) {
-                console.error('[AuthService.googleCallbackLogin] Error: Invalid payload or missing email');
                 throw new AppError('Invalid Google payload info', 400);
             }
 
-            console.info(`[AuthService.googleCallbackLogin] Payload verified for email: ${payload.email}`);
-
-            // A partir de aquí, la lógica es idéntica al googleLogin existente
             let user = await userService.getUserByEmail(payload.email);
 
             if (!user) {
-                console.info(`[AuthService.googleCallbackLogin] User not found in DB. Creating new user for: ${payload.email}`);
-                // Auto-register Google users
-                const newUser: User = {
+                const newUser: any = {
                     email: payload.email,
                     firstName: payload.given_name || 'Google',
                     lastName: payload.family_name || 'User',
@@ -178,22 +296,23 @@ export class AuthService {
                     documentType: undefined,
                     id: require('uuid').v4(),
                     registrationDate: new Date().toISOString(),
-                    documentsUploaded: false
+                    documentsUploaded: false,
+                    isEmailVerified: true
                 };
                 user = await userService.create(newUser);
-                console.info('[AuthService.googleCallbackLogin] New user created successfully.');
-            } else {
-                console.info(`[AuthService.googleCallbackLogin] User found in DB for: ${payload.email}`);
+            } else if (!(user as any).isEmailVerified) {
+                user = await prisma.user.update({
+                    where: { email: user.email },
+                    data: { isEmailVerified: true }
+                }) as any;
             }
 
             if (!user) throw new AppError('Error with Google callback login', 500);
 
-            console.info('[AuthService.googleCallbackLogin] Generating JWT token and finishing login process.');
             const token = this.generateToken(user);
             return { user, token };
 
         } catch (error: any) {
-            console.error('[AuthService] Error in googleCallbackLogin:', error);
             throw new AppError(`Google server-side authentication failed: ${error.message}`, 401);
         }
     }
