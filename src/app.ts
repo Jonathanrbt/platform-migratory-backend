@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/authRoutes';
 import clientRoutes from './routes/clientRoutes';
@@ -10,8 +9,6 @@ import familyRoutes from './routes/familyRoutes';
 import webhookRoutes from './routes/webhookRoutes';
 import documentRoutes from './routes/documentRoutes';
 import { errorMiddleware } from './middleware/errorMiddleware';
-
-dotenv.config();
 
 const app = express();
 

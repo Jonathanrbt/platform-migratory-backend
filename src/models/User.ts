@@ -18,6 +18,7 @@ export const userSchema = z.object({
     familyId: z.string().optional().describe('ID del Nucleo Familiar'),
     documentsUploaded: z.boolean().default(false).describe('Documentos Subidos'),
     driveFolderId: z.string().optional().describe('ID de la carpeta personal en Drive'),
+    isEmailVerified: z.boolean().default(false).describe('Estado de verificacion del email'),
 });
 
 export type User = z.infer<typeof userSchema>;
