@@ -262,6 +262,15 @@ export class ClientService {
                         details: 'El cliente ha subsanado su registro y vuelve a estar completo.'
                     }
                 });
+
+                await prisma.alert.create({
+                    data: {
+                        clientId: id,
+                        type: 'SUBSANACION',
+                        message: 'Subsanación Completa',
+                        status: 'PENDIENTE'
+                    }
+                });
             }
         }
 

@@ -387,6 +387,15 @@ export class DocumentService {
                             details: 'El cliente ha subsanado sus documentos y vuelve a estar completo.'
                         }
                     });
+
+                    await prisma.alert.create({
+                        data: {
+                            clientId: userId,
+                            type: 'SUBSANACION',
+                            message: 'Subsanación de Documentos Completa',
+                            status: 'PENDIENTE'
+                        }
+                    });
                     console.log(`[DocumentService] Status changed to 'En revisión por abogado' for user ${userId} and email sent.`);
                 }
             }
