@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/authRoutes';
 import clientRoutes from './routes/clientRoutes';
@@ -11,12 +10,12 @@ import webhookRoutes from './routes/webhookRoutes';
 import documentRoutes from './routes/documentRoutes';
 import { errorMiddleware } from './middleware/errorMiddleware';
 
-dotenv.config();
-
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: process.env.FRONTEND_URL,
   credentials: true,
 }));
 app.use(express.json());

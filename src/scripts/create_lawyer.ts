@@ -3,11 +3,12 @@ import prisma from '../config/prisma';
 
 async function createLawyer() {
     const authService = new AuthService();
+    let result: any;
     
     try {
         console.log('Creando usuario abogado...');
         
-        const result = await authService.register({
+        result = await authService.register({
             email: 'abogado@gmail.com',
             password: 'admin123',
             firstName: 'Abogado',
@@ -24,7 +25,7 @@ async function createLawyer() {
         
     } catch (error: any) {
         if (error.message === 'Email already in use') {
-            console.log('El usuario abogado@gmail.com ya existe en la base de datos.');
+            console.log(`El usuario ${result.user.email} ya existe en la base de datos.`);
         } else {
             console.error('Error al crear el usuario abogado:', error);
         }

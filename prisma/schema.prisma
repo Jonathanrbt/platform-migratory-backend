@@ -36,6 +36,8 @@ model User {
   driveFolderId     String?  // ID de la carpeta personal en Google Drive
   documents         Document[]
 
+  isEmailVerified   Boolean  @default(false)
+
   @@map("users")
 }
 
@@ -113,4 +115,21 @@ model Alert {
   updatedAt DateTime    @updatedAt
 
   @@map("alerts")
+}
+
+enum TokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+model VerificationToken {
+  id        String    @id @default(uuid())
+  email     String
+  token     String
+  type      TokenType
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@unique([email, token, type])
+  @@map("verification_tokens")
 }

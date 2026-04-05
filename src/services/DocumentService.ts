@@ -55,7 +55,11 @@ export class DocumentService {
         
         const looksAltered = checks.looksAltered || false;
         const isReadable = checks.isReadable || false;
-        const isExpired = checks.isExpired || false;
+        let isExpired = checks.isExpired || false;
+
+        if (docType === 'PRUEBA_RESIDENCIA' || docType === 'OTROS') {
+            isExpired = false;
+        }
 
         let status: 'GREEN' | 'YELLOW' | 'RED' = 'RED';
         let resultLabel: 'Pass' | 'Fail' | 'Warning' = 'Fail';
@@ -209,7 +213,11 @@ export class DocumentService {
         const checks = analysis.validationChecks || {};
         const looksAltered = checks.looksAltered || false;
         const isReadable = checks.isReadable || false;
-        const isExpired = checks.isExpired || false;
+        let isExpired = checks.isExpired || false;
+
+        if (docType === 'PRUEBA_RESIDENCIA' || docType === 'OTROS') {
+            isExpired = false;
+        }
 
         let status: 'GREEN' | 'YELLOW' | 'RED' = 'RED';
         let resultLabel: 'Pass' | 'Fail' | 'Warning' = 'Fail';
@@ -291,6 +299,10 @@ export class DocumentService {
 
         if (uploadError) throw new AppError(`Documento validado correctamente pero hubo un problema al guardarlo en Drive: ${uploadError.message}. El administrador lo revisará.`, 207);
 
+        // Evaluar progreso tras subsanación si aplica
+        await this.checkCorrectionProgress(user.id);
+
+        console.log(`[DocumentService] Update process completed successfully.`);
         return doc;
     }
 
@@ -377,6 +389,15 @@ export class DocumentService {
                             clientId: userId,
                             action: 'CORRECTION_SUBMITTED',
                             details: 'El cliente ha subsanado sus documentos y vuelve a estar completo.'
+                        }
+                    });
+
+                    await prisma.alert.create({
+                        data: {
+                            clientId: userId,
+                            type: 'SUBSANACION',
+                            message: 'Subsanación de Documentos Completa',
+                            status: 'PENDIENTE'
                         }
                     });
                     console.log(`[DocumentService] Status changed to 'En revisión por abogado' for user ${userId} and email sent.`);

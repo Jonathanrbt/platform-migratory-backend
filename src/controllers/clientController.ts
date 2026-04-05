@@ -3,6 +3,7 @@ import { ClientService } from '../services/clientService';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/AppError';
 import prisma from '../config/prisma';
+import { emailService } from '../services/EmailService';
 
 const clientService = new ClientService();
 
@@ -222,20 +223,21 @@ export const reviewClient = asyncHandler(async (req: Request, res: Response) => 
     const client = await clientService.getClientById(id as string);
     const clientSheetsService = (clientService as any).clientSheetsService;
     
-    if (note) {
-        // Insert a new LawyerNote conforming to schema
-        const NoteSheetsService = require('../services/googleSheets/NoteSheetsService').NoteSheetsService;
-        const noteService = new NoteSheetsService();
-        await noteService.createNote({
-            clientId: id as string,
-            lawyerName: user?.email || 'Sistema Abogado',
-            category: 'Revisión',
-            note: note,
-            priority: 'High',
-            status: 'Pending'
-        });
-        // Note: createNote already updates the pendingNotesCount on the client
-    }
+    const NoteSheetsService = require('../services/googleSheets/NoteSheetsService').NoteSheetsService;
+    const noteService = new NoteSheetsService();
+    
+    const noteContent = note ? note : `El estado de su solicitud ha sido actualizado a: ${status}`;
+    const noteCategory = note ? 'Revisión' : 'Alerta';
+
+    await noteService.createNote({
+        clientId: id as string,
+        lawyerName: user?.email || 'Sistema',
+        category: noteCategory,
+        note: noteContent,
+        priority: 'High',
+        status: 'Pending'
+    });
+    // Note: createNote already updates the pendingNotesCount on the client
     
     // We bypass regular update restrictions since this is an admin/lawyer action
     // We only update status and lastUpdatedDate here, pendingNotesCount is handled by createNote
@@ -254,6 +256,16 @@ export const reviewClient = asyncHandler(async (req: Request, res: Response) => 
                 details: `Status changed to ${status}${note ? '. Note added.' : ''}`
             }
         });
+    }
+
+    // Send status update email to the client
+    if (client.email) {
+        await emailService.sendStatusUpdateEmail(
+            client.email,
+            client.firstName || 'Cliente',
+            status as string,
+            note
+        );
     }
 
     res.status(200).json({

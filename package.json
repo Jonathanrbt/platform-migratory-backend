@@ -7,7 +7,7 @@
     "gcp-build": "npm run build",
     "build": "npx prisma generate && tsc",
     "start": "npx prisma db push --accept-data-loss && node dist/index.js",
-    "dev": "nodemon src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "test": "jest",
     "lint": "eslint src/**/*.ts tests/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
@@ -35,6 +35,8 @@
     "@google-cloud/vision": "^5.3.4",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.19.2",
+    "@react-email/components": "^1.0.11",
+    "@react-email/render": "^2.0.5",
     "@types/nodemailer": "^7.0.11",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -46,6 +48,9 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "resend": "^6.10.0",
     "uuid": "^9.0.1",
     "zod": "^4.3.6"
   },
@@ -58,6 +63,8 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^25.2.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@types/supertest": "^6.0.3",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
@@ -73,6 +80,7 @@
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

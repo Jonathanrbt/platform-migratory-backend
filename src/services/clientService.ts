@@ -40,6 +40,7 @@ export class ClientService {
             return {
                 id: c.id,
                 Nombre: `${c.firstName} ${c.lastName}`.trim(),
+                TipoDocumento: c.documentType || 'N/A',
                 Documento: c.documentNumber || 'N/A',
                 Correo: c.email,
                 Tipo: applicantType,
@@ -85,10 +86,8 @@ export class ClientService {
         // 2. Regla legal: Fecha de entrada (31/12/2025)
         const limitDate = new Date('2025-12-31');
         const entryDate = new Date(clientData.entryDate);
-        let isRejectedByLegalRule = false;
         if (entryDate > limitDate) {
-            status = 'Rechazado';
-            isRejectedByLegalRule = true;
+            throw new AppError('No cumples con el requisito legal de permanencia mínima (entrada antes del 31/12/2025). Tu solicitud no puede ser procesada.', 400);
         }
 
         // 3. Notas automáticas para antecedentes
@@ -118,13 +117,8 @@ export class ClientService {
             driveFolderId: existingDriveFolderId // Ensure it's carried over
         };
 
-        // 4. Guardar en Google Sheets (Incluso si es rechazado por regla legal, para trazabilidad)
+        // 4. Guardar en Google Sheets
         await this.clientSheetsService.create(newClient);
-
-        if (isRejectedByLegalRule) {
-            // Informamos al usuario pero el registro ya queda guardado
-            throw new AppError('Su solicitud ha sido registrada pero no cumple con el requisito legal de permanencia mínima (entrada antes del 31/12/2025). Un asesor podría contactarle para más detalles.', 400);
-        }
 
         // --- Drive and DB Sync ---
         let finalFolderId: string | undefined = existingDriveFolderId;
@@ -230,6 +224,23 @@ export class ClientService {
 
         updates.lastUpdatedDate = new Date().toISOString();
 
+        // Sincronizar Tipo de Documento y Número de Documento con Prisma
+        if (updates.documentType || updates.documentNumber) {
+            const dataToUpdate: any = {};
+            if (updates.documentType) dataToUpdate.documentType = updates.documentType;
+            if (updates.documentNumber) dataToUpdate.documentNumber = updates.documentNumber;
+            
+            try {
+                await prisma.user.update({
+                    where: { id: id },
+                    data: dataToUpdate
+                });
+            } catch (error) {
+                console.error(`[ClientService] Error updating document info in Prisma for user ${id}:`, error);
+                // Non-blocking error, we still want to update Sheets
+            }
+        }
+
         await this.clientSheetsService.update(id, updates);
 
         if (wasRequiresCorrection && user.role === 'Cliente') {
@@ -251,6 +262,15 @@ export class ClientService {
                         details: 'El cliente ha subsanado su registro y vuelve a estar completo.'
                     }
                 });
+
+                await prisma.alert.create({
+                    data: {
+                        clientId: id,
+                        type: 'SUBSANACION',
+                        message: 'Subsanación Completa',
+                        status: 'PENDIENTE'
+                    }
+                });
             }
         }
 
@@ -265,7 +285,8 @@ export class ClientService {
             'firstName', 'lastName', 'fechaNacimiento', 'nacionalidad', 
             'countryOfBirth', 'sexo', 'estadoCivil', 'email', 'phone', 
             'direccion', 'province', 'municipality', 'entryDate', 'entryWay', 
-            'stayDuration', 'isRegisteredInTownHall', 'hasCriminalRecord'
+            'stayDuration', 'isRegisteredInTownHall', 'hasCriminalRecord',
+            'documentType', 'documentNumber'
         ];
         
         let filledFields = 0;

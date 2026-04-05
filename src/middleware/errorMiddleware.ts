@@ -2,13 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
 
 export const errorMiddleware = (
-  err: Error | AppError,
+  err: any,
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const statusCode = err instanceof AppError ? err.statusCode : 500;
-  const message = err.message || 'Internal Server Error';
+  let statusCode = err instanceof AppError ? err.statusCode : 500;
+  let message = err.message || 'Internal Server Error';
+
+  // Handle Multer file size limit error
+  if (err.code === 'LIMIT_FILE_SIZE' || message === 'File too large') {
+    statusCode = 413;
+    message = 'El archivo excede el tamaño máximo permitido de 4MB. Por favor, comprímelo o sube un archivo más pequeño.';
+  }
 
   // Log error for developers
   if (statusCode === 500) {
