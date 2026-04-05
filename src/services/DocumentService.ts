@@ -299,6 +299,10 @@ export class DocumentService {
 
         if (uploadError) throw new AppError(`Documento validado correctamente pero hubo un problema al guardarlo en Drive: ${uploadError.message}. El administrador lo revisará.`, 207);
 
+        // Evaluar progreso tras subsanación si aplica
+        await this.checkCorrectionProgress(user.id);
+
+        console.log(`[DocumentService] Update process completed successfully.`);
         return doc;
     }
 
