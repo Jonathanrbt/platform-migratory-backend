@@ -154,3 +154,4 @@ vite.config.ts.timestamp-*
 .supabase_db_password.tmp
 .supabase_urls.tmp
 
+.render_envvars.json
