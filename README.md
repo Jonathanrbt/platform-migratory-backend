@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🌍 Platform Migratory API</h1>
+  <h1>Platform Migratory API</h1>
   <p><b>Streamlining legal immigration processes through AI-powered document validation and seamless Google Workspace integration.</b></p>
 
   <a href="https://nodejs.org/">
@@ -14,214 +14,234 @@
   <a href="https://www.prisma.io/">
     <img src="https://img.shields.io/badge/Prisma-3982CE?style=for-the-badge&logo=Prisma&logoColor=white" alt="Prisma" />
   </a>
-  <a href="https://cloud.google.com/">
-    <img src="https://img.shields.io/badge/Google_Cloud-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Google Cloud" />
+  <a href="https://supabase.com/">
+    <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase" />
   </a>
-  <a href="https://www.docker.com/">
-    <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <a href="https://render.com/">
+    <img src="https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white" alt="Render" />
   </a>
 </div>
 
 ---
 
-## 📖 Table of Contents
+## Table of Contents
 
-* [✨ Features](#-features)
-* [🏗️ Architecture & AI Flow](#️-architecture--ai-flow)
-* [📂 Folder Structure](#-folder-structure)
-* [🚀 Getting Started](#-getting-started)
-
-  * [Prerequisites](#prerequisites)
-  * [Installation](#installation)
-  * [Environment Variables](#environment-variables)
-  * [Database Setup (Prisma)](#database-setup-prisma)
-* [🛠️ Running the Application](#️-running-the-application)
-* [🐳 Deployment (Docker & GCP)](#-deployment-docker--gcp)
-* [🤝 Contributing](#-contributing)
-* [📄 License](#-license)
+* [Features](#features)
+* [Architecture & AI Flow](#architecture--ai-flow)
+* [Folder Structure](#folder-structure)
+* [Getting Started](#getting-started)
+* [Running the Application](#running-the-application)
+* [Deployment (Render + Supabase)](#deployment-render--supabase)
+* [Google OAuth Cutover Checklist](#google-oauth-cutover-checklist)
+* [Contributing](#contributing)
+* [License](#license)
 
 ---
 
-## ✨ Features
+## Features
 
-* **Dual-Role Authentication:** Secure access control tailored for both `Clients` (applicants) and `Lawyers` (administrators).
-* **AI Document Validation:** Automated data extraction and validation using Google Vision API and Gemini AI.
-* **Automated Storage Pipeline:** Direct integration with Google Drive for secure document storage.
-* **Real-time Syncing:** Live synchronization of client statuses and validations to Google Sheets.
-* **Family Nucleus Management:** Grouping and managing interconnected migratory applications.
+* **Dual-Role Authentication:** Secure access for `Clients` and `Lawyers`.
+* **AI Document Validation:** Google Vision API + Gemini AI.
+* **Automated Storage Pipeline:** Google Drive for document storage.
+* **Real-time Syncing:** Client statuses and validations in Google Sheets.
+* **Family Nucleus Management:** Group interconnected migratory applications.
 
 ---
 
-## 🏗️ Architecture & AI Flow
+## Architecture & AI Flow
 
-The platform relies on a robust layer-based architecture (Routes -> Controllers -> Services). Our core innovation lies in the automated document processing pipeline:
+Layered architecture: Routes → Controllers → Services.
 
 ```mermaid
 graph LR
-    A["Client Uploads Doc <br/>(Multer)"] --> B["AI Processing <br/>(Vision/Gemini extracts data)"]
-    B --> C["Cloud Storage <br/>(Upload to Google Drive)"]
-    C --> D["Data Sync <br/>(Update Google Sheets)"]
-    D --> E["Persistence <br/>(Save to DB via Prisma)"]
+    A["Client Uploads Doc"] --> B["AI Processing Vision/Gemini"]
+    B --> C["Upload to Google Drive"]
+    C --> D["Sync Google Sheets"]
+    D --> E["Persist metadata via Prisma"]
 ```
 
-Upload: A client uploads an identity or legal document.
-
-AI Processing: visionService and geminiService analyze the document, validating its authenticity and extracting key migratory data.
-
-Storage: The file is securely uploaded to Google Drive via driveService.
-
-Sync: Key metadata and validation statuses are logged into Google Sheets (ClientSheetsService, ValidationSheetsService) for legal review.
-
-Persistence: The final state and URLs are saved in our relational database using Prisma.
+- **Identity / ops DB:** PostgreSQL on Supabase (Prisma)
+- **Case data:** Google Sheets
+- **Files:** Google Drive
+- **Hosting:** Render Web Service
 
 ---
 
-## 📂 Folder Structure
+## Folder Structure
 
 ```plaintext
 platform-migratory-backend/
-├── prisma/                  # Database schema and migrations
+├── prisma/                  # Schema + PostgreSQL migrations
 ├── src/
-│   ├── config/              # App configuration (Google APIs, Prisma client)
-│   ├── controllers/         # Request handlers (Auth, Client, Lawyer, Documents)
-│   ├── middleware/          # Express middlewares (Auth, Roles, Error handling)
-│   ├── models/              # TypeScript interfaces/types
-│   ├── routes/              # API Route definitions
-│   ├── services/            # Core business logic
-│   │   ├── ai/              # Gemini and Vision integrations
-│   │   ├── googleDrive/     # Drive API handlers & webhooks
-│   │   └── googleSheets/    # Sheet synchronization repositories
-│   ├── utils/               # Helpers (AppError, asyncHandler)
-│   ├── app.ts               # Express app setup
-│   └── index.ts             # Server entry point
-├── tests/                   # Jest test suites
-├── Dockerfile               # Container configuration
-└── .env.example             # Environment variables template
+│   ├── config/              # Google APIs, Prisma client
+│   ├── controllers/
+│   ├── middleware/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
+│   │   ├── ai/              # Gemini and Vision
+│   │   ├── googleDrive/
+│   │   └── googleSheets/
+│   ├── utils/
+│   ├── app.ts
+│   └── index.ts
+├── tests/
+├── .env.example
+└── README.md
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-* Node.js (v18 or higher)
-* Docker & Docker Compose (optional, for local DB/deployment)
-* MySQL Database
-* Google Cloud Console Project (with Drive, Sheets, and Vision APIs enabled)
+* Node.js 18+
+* Access to a Supabase PostgreSQL database (or local Postgres)
+* Google Cloud project with Drive, Sheets, Vision APIs enabled (APIs only; hosting is on Render)
+* Gemini API key
+* Resend API key (email)
 
 ### Installation
 
-Clone the repository:
-
 ```bash
-git clone [https://github.com/Jonathanrbt/platform-migratory-backend.git](https://github.com/Jonathanrbt/platform-migratory-backend.git)
+git clone https://github.com/Jonathanrbt/platform-migratory-backend.git
 cd platform-migratory-backend
-```
-
-Install dependencies:
-
-```bash
 npm install
 ```
 
 ### Environment Variables
 
-Copy the example environment file and fill in your details:
-
 ```bash
 cp .env.example .env
 ```
-Open the `.env` file and configure the following main blocks (you can find all the configuration details in `.env.example`):
 
-- **Authentication:** Generate a secure `JWT_SECRET`.
-- **Google Cloud Service Account:** You will need `GOOGLE_PROJECT_ID`, `GOOGLE_CLIENT_EMAIL`, and `GOOGLE_PRIVATE_KEY` (remember to keep the `\n` line breaks inside the quotes).
-- **OAuth 2.0:** Configure the `GOOGLE_CLIENT_ID`, `SECRET`, and the `REFRESH_TOKEN` (generated from OAuth Playground) for Drive persistence.
-- **Database:** Define your `DATABASE_URL` for Prisma.
+Configure at least:
 
-Make sure to configure your Google Service Account credentials, Prisma `DATABASE_URL`, and your `GEMINI_API_KEY` inside the `.env` file.
+| Variable | Purpose |
+|---|---|
+| `JWT_SECRET` | Auth tokens |
+| `DATABASE_URL` | Supabase transaction pooler (`:6543`, `pgbouncer=true`) |
+| `DIRECT_URL` | Supabase session pooler (`:5432`) for Prisma migrations |
+| `GOOGLE_*` | Service account + OAuth + Drive/Sheets IDs |
+| `GEMINI_API_KEY` | AI validation |
+| `FRONTEND_URL` | CORS + post-login redirects (Vercel in production) |
+| `GOOGLE_REDIRECT_URI` | Backend OAuth callback URL |
+| `RESEND_API_KEY` / `SMTP_FROM` | Email |
+
+See `.env.example` for full comments.
 
 ### Database Setup (Prisma)
 
-We use Prisma ORM to manage our database schema. Run the following commands to get your database ready:
-
 ```bash
-# Generate the Prisma Client based on your schema
 npx prisma generate
-
-# Push the schema state to the database (Ideal for prototyping)
-npx prisma db push
-
-# OR: Apply migrations to your development database (Standard)
-npx prisma migrate dev --name init
+npx prisma migrate deploy   # production / CI
+# OR for local iteration:
+npx prisma migrate dev
 ```
+
+Production start already runs `prisma migrate deploy` before the server boots.
+
 ---
 
-## 🛠️ Administrative Tasks
+## Administrative Tasks
 
-### Create a "Lawyer" User (Administrator)
-To manage the system, validate documents, and assist clients, you need an account with a "lawyer" role. Due to security measures, these users cannot be registered through the public interface.
+### Create a Lawyer User
 
-Use the dedicated script to generate this profile from the terminal:
-
-\`\`\`bash
+```bash
 npx ts-node src/scripts/create_lawyer.ts
-\`\`\`
+```
 
-The script will guide you through the process or generate the necessary credentials in the database so you can log in immediately to the administrative dashboard.
-
-Modify the lawyer script to add your own credentials.
+Edit the script credentials as needed before running.
 
 ---
 
-## 🛠️ Running the Application
-
-Development Mode:
+## Running the Application
 
 ```bash
-npm run dev
+npm run dev      # development
+npm run build    # prisma generate + tsc
+npm start        # migrate deploy + node dist/index.js
 ```
 
-Production Build:
-
-```bash
-npm run build
-npm start
-```
+Health check: `GET /health`
 
 ---
 
+## Deployment (Render + Supabase)
 
-## 🤝 Contributing
+### Supabase
 
-We care about code quality and consistency! We use Husky, lint-staged, ESLint, and Prettier to maintain our standards.
+1. Project: `platformigratory` (PostgreSQL, West EU).
+2. Use **pooler** connection strings (IPv4-friendly):
+   - `DATABASE_URL` → transaction mode port `6543`
+   - `DIRECT_URL` → session mode port `5432`
+3. Apply schema with `npx prisma migrate deploy` (also runs on Render boot).
 
-Branching Strategy: Create a feature branch from main: git checkout -b feature/your-feature-name
+Supabase Auth / Storage / RLS are **not** used; Prisma owns the schema.
 
-Conventional Commits: We enforce Conventional Commits. Your commit messages should look like:
+### Render
+
+1. Web Service connected to this GitHub repo.
+2. Build: `npm install && npm run build` (set `NPM_CONFIG_PRODUCTION=false` so TypeScript/`@types` from devDependencies are available during build)
+3. Start: `npm start`
+4. Region: Frankfurt (EU). Prefer **Starter** (paid) so the service does not sleep; Free works but cold starts can break OAuth mid-flow.
+5. Set all production env vars from `.env.example` (values from your secrets store).
+6. Production URL (current): `https://platform-migratory-backend.onrender.com`
+7. After deploy, set / verify:
+   - `GOOGLE_REDIRECT_URI=https://platform-migratory-backend.onrender.com/api/v1/auth/google/callback`
+   - `FRONTEND_URL=https://<app>.vercel.app` (update when the frontend moves off Cloud Run)
+
+---
+
+## Google OAuth Cutover Checklist
+
+OAuth lives in **Google Cloud Console → APIs & Services → Credentials** (not on Cloud Run). Hosting can move; the OAuth client stays.
+
+1. Deploy backend on Render and note the public HTTPS URL.
+2. In the OAuth 2.0 Web Client:
+   - **Authorized redirect URIs:** add  
+     `https://<backend>.onrender.com/api/v1/auth/google/callback`  
+     (remove old `*.run.app` callback when cutover is done).
+   - **Authorized JavaScript origins:** add Vercel origin  
+     `https://<frontend>.vercel.app` (+ `http://localhost:5173` for local).
+3. Set Render env:
+   - `GOOGLE_REDIRECT_URI` = exact callback URI from step 2
+   - `FRONTEND_URL` = exact Vercel origin (CORS is origin-exact)
+4. Point the frontend API base URL to the Render backend.
+5. Smoke test: open `/api/v1/auth/google/url` → Google consent → land on `/login/success?token=...`.
+
+**Common failures**
+
+| Symptom | Cause |
+|---|---|
+| `redirect_uri_mismatch` | Console URI ≠ `GOOGLE_REDIRECT_URI` |
+| CORS errors | `FRONTEND_URL` ≠ browser origin |
+| CSRF / missing `oauth_state` | Callback not on HTTPS / cookie blocked |
+
+Drive, Sheets, Vision, and Gemini credentials do **not** change with this hosting move.
+
+---
+
+## Contributing
+
+We use Husky, lint-staged, ESLint, and Prettier.
 
 ```text
 feat: add new gemini extraction service
-
 fix: resolve memory leak in multer upload
-
 docs: update setup instructions
 ```
 
-Pre-commit Hooks: When you run git commit, Husky will automatically trigger lint-staged to format your code with Prettier and check for errors with ESLint. If the linting fails, the commit will be aborted.
-
-Push & PR: Push your branch and open a Pull Request describing your changes.
-
 ```bash
-# To manually run the linter and formatter before committing:
 npm run lint
 npm run format
 ```
 
 ---
 
-## 📄 License
+## License
 
 This project is proprietary and confidential. Unauthorized copying of these files, via any medium, is strictly prohibited.
 
-<p align="center">Made with ❤️ for a better migratory experience.</p>
+<p align="center">Made for a better migratory experience.</p>
