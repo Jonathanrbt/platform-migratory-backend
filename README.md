@@ -183,7 +183,7 @@ Supabase Auth / Storage / RLS are **not** used; Prisma owns the schema.
 ### Render
 
 1. Web Service connected to this GitHub repo.
-2. Build: `npm install && npm run build`
+2. Build: `npm install && npm run build` (set `NPM_CONFIG_PRODUCTION=false` so TypeScript/`@types` from devDependencies are available during build)
 3. Start: `npm start`
 4. Region: Frankfurt (EU). Prefer **Starter** (paid) so the service does not sleep; Free works but cold starts can break OAuth mid-flow.
 5. Set all production env vars from `.env.example` (values from your secrets store).
