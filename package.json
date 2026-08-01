@@ -10,7 +10,10 @@
     "test": "jest",
     "lint": "eslint src/**/*.ts tests/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "prepare": "husky"
+    "prepare": "husky || true"
+  },
+  "engines": {
+    "node": ">=18 <=22"
   },
   "lint-staged": {
     "*.ts": [

@@ -185,11 +185,12 @@ Supabase Auth / Storage / RLS are **not** used; Prisma owns the schema.
 1. Web Service connected to this GitHub repo.
 2. Build: `npm install && npm run build`
 3. Start: `npm start`
-4. Region: Frankfurt (EU). Plan: Starter (avoid free sleep breaking OAuth).
+4. Region: Frankfurt (EU). Prefer **Starter** (paid) so the service does not sleep; Free works but cold starts can break OAuth mid-flow.
 5. Set all production env vars from `.env.example` (values from your secrets store).
-6. After first deploy, set:
-   - `GOOGLE_REDIRECT_URI=https://<service>.onrender.com/api/v1/auth/google/callback`
-   - `FRONTEND_URL=https://<app>.vercel.app`
+6. Production URL (current): `https://platform-migratory-backend.onrender.com`
+7. After deploy, set / verify:
+   - `GOOGLE_REDIRECT_URI=https://platform-migratory-backend.onrender.com/api/v1/auth/google/callback`
+   - `FRONTEND_URL=https://<app>.vercel.app` (update when the frontend moves off Cloud Run)
 
 ---
 
